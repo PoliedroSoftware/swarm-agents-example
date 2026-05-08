@@ -1,0 +1,62 @@
+services:
+  # ─── MySQL ───
+  mysql:
+    image: mysql:8.0
+    container_name: swarm-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-swarm_demo}
+      MYSQL_USER: ${MYSQL_USER:-swarm}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-swarm}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ─── Redis ───
+  redis:
+    image: redis:7-alpine
+    container_name: swarm-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── .NET 8 API ───
+  api:
+    image: 1091658551/swarm-api:latest
+    container_name: swarm-api
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: Server=mysql;Port=3306;Database=${MYSQL_DATABASE:-swarm_demo};Uid=${MYSQL_USER:-swarm};Pwd=${MYSQL_PASSWORD:-swarm};
+      ConnectionStrings__Redis: redis:6379
+    ports:
+      - "5010:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mysql_data:
+  redis_data:

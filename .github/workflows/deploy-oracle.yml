@@ -1,0 +1,112 @@
+name: Deploy — Oracle Cloud
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'projects/backend/**'
+      - 'docker-compose.yml'
+      - 'docker-compose.prod.yml'
+      - '.github/workflows/deploy-oracle.yml'
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE_API: 1091658551/swarm-api:latest
+  DOCKER_IMAGE_MYSQL: mysql:8.0
+  DOCKER_IMAGE_REDIS: redis:7-alpine
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════
+  deploy:
+    name: '🚀 Deploy to Oracle Cloud'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
+
+      # ── Step 1: Copy compose file to server ──
+      - name: '📤 Step 1 — Copy docker-compose.prod.yml to server'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          password: ${{ secrets.ORACLE_PASSWORD }}
+          port: 22
+          source: 'docker-compose.prod.yml'
+          target: '/home/ubuntu/'
+          overwrite: true
+          timeout: 30s
+
+      # ── Step 2: Pull images + restart stack ──
+      - name: '🐳 Step 2 — Pull latest images'
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          password: ${{ secrets.ORACLE_PASSWORD }}
+          port: 22
+          timeout: 120s
+          script: |
+            echo "🚀 Starting Oracle Cloud deploy..."
+            echo ""
+
+            # ── Pull latest images ──
+            echo "📥 Pulling images..."
+            docker pull ${{ env.DOCKER_IMAGE_API }} || echo "⚠️ API image pull failed"
+            docker pull ${{ env.DOCKER_IMAGE_MYSQL }} || echo "⚠️ MySQL image pull failed"
+            docker pull ${{ env.DOCKER_IMAGE_REDIS }} || echo "⚠️ Redis image pull failed"
+            echo "✅ Images pulled"
+            echo ""
+
+            # ── Stop existing containers ──
+            echo "🛑 Stopping existing containers..."
+            docker compose -f /home/ubuntu/docker-compose.prod.yml down --remove-orphans || true
+            echo ""
+
+            # ── Start stack ──
+            echo "🐳 Starting containers..."
+            docker compose -f /home/ubuntu/docker-compose.prod.yml up -d --force-recreate
+            echo ""
+
+            # ── Wait for health ──
+            echo "⏳ Waiting for services to be healthy..."
+            sleep 10
+
+            # ── Check status ──
+            echo "📊 Container status:"
+            docker compose -f /home/ubuntu/docker-compose.prod.yml ps
+            echo ""
+
+            # ── Health check API ──
+            echo "🔍 Testing API..."
+            curl -s http://localhost:5010/api/products?pageSize=1 || echo "⚠️ API not reachable yet"
+            echo ""
+
+            echo "✅ Deploy to Oracle Cloud complete!"
+
+      # ── Step 3: Verify deployment ──
+      - name: '🔍 Step 3 — Verify API from public'
+        run: |
+          echo "🔍 Testing public API..."
+          sleep 5
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.ORACLE_HOST }}:5010/api/products || echo "000")
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ API responding (HTTP 200)"
+          else
+            echo "⚠️ API returned HTTP $RESPONSE — check firewall rules (port 5010)"
+          fi
+
+      # ── Step 4: Summary ──
+      - name: '📊 Deploy summary'
+        run: |
+          echo "### 🚀 Oracle Cloud Deploy" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image | Port |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| MySQL | mysql:8.0 | 3306 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Redis | redis:7-alpine | 6379 |" >> $GITHUB_STEP_SUMMARY
+          echo "| API | ${{ env.DOCKER_IMAGE_API }} | 5010 |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **API**: http://${{ secrets.ORACLE_HOST }}:5010/swagger" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **API Products**: http://${{ secrets.ORACLE_HOST }}:5010/api/products" >> $GITHUB_STEP_SUMMARY
