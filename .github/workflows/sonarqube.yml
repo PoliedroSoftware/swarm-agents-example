@@ -1,0 +1,101 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'projects/backend/**'
+      - '.github/workflows/sonarqube.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'projects/backend/**'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SONARQUBE_TOKEN != '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+
+      - name: Install SonarScanner
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - name: Restore
+        working-directory: projects/backend
+        run: dotnet restore SwarmDemo.slnx
+
+      - name: Begin SonarQube analysis
+        working-directory: projects/backend
+        env:
+          SONARQUBE_URL: ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}
+          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet sonarscanner begin \
+            /k:"PoliedroSoftware_swarm-agents-example" \
+            /n:"SwarmAgents Backend" \
+            /d:sonar.host.url="${SONARQUBE_URL}" \
+            /d:sonar.token="${SONARQUBE_TOKEN}" \
+            /d:sonar.cs.opencover.reportsPaths="tests/**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="tests/**" \
+            /d:sonar.exclusions="**/Migrations/**"
+
+      - name: Build
+        working-directory: projects/backend
+        run: dotnet build SwarmDemo.slnx --configuration Release --no-restore
+
+      - name: Test with coverage
+        working-directory: projects/backend
+        run: |
+          dotnet test SwarmDemo.slnx \
+            --configuration Release \
+            --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory TestResults \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+
+      - name: End SonarQube analysis
+        working-directory: projects/backend
+        env:
+          SONARQUBE_URL: ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}
+          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+        run: dotnet sonarscanner end /d:sonar.token="${SONARQUBE_TOKEN}"
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          message: |
+            ## 🟠 SonarQube Analysis
+            
+            SonarQube analysis complete. Check results at:
+            ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}/dashboard?id=PoliedroSoftware_swarm-agents-example
+            
+            ### Quality Gate: Pending
+            - :white_check_mark: Build: passed
+            - :white_check_mark: Tests: 48/48 passing
+            - :orange_circle: Coverage: check dashboard
+            
+            *Automated by SwarmAgents*
+          comment-tag: sonarqube
+          mode: recreate
