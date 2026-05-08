@@ -60,7 +60,9 @@ jobs:
 
       - name: Set lowercase image name
         id: vars
-        run: echo "image=${REGISTRY,,}/${{ github.repository_owner }}/swarm-frontend" >> $GITHUB_OUTPUT
+        run: |
+          owner="${{ github.repository_owner }}"
+          echo "image=${REGISTRY,,}/${owner,,}/swarm-frontend" >> $GITHUB_OUTPUT
 
       - name: Log in to GHCR
         uses: docker/login-action@v3

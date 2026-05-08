@@ -86,7 +86,15 @@ jobs:
 
       - name: Set lowercase image name
         id: vars
-        run: echo "image=${REGISTRY,,}/${{ github.repository_owner }}/swarm-api" >> $GITHUB_OUTPUT
+        run: |
+          owner="${{ github.repository_owner }}"
+          echo "image=${REGISTRY,,}/${owner,,}/swarm-api" >> $GITHUB_OUTPUT
+
+      - name: Publish .NET
+        working-directory: projects/backend
+        run: |
+          dotnet restore SwarmDemo.slnx
+          dotnet publish SwarmDemo.Api/SwarmDemo.Api.csproj -c Release -o publish
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
