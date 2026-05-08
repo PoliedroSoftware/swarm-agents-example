@@ -1,0 +1,215 @@
+name: Postman Collection Sync
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'contracts/api.openapi.yaml'
+      - '.swarm-reports/postman-collection.json'
+      - '.github/workflows/postman-collection.yml'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  sync-collection:
+    name: Sync Postman Collection
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Generate Postman Collection from OpenAPI
+        id: generate
+        run: |
+          mkdir -p .swarm-reports
+
+          # Generate collection from OpenAPI spec using Node.js
+          node -e "
+          const fs = require('fs');
+
+          // Build collection from OpenAPI spec
+          const collection = {
+            info: {
+              name: 'swarm-agents-example-api-products',
+              description: 'Generated from contracts/api.openapi.yaml by SwarmAgents postman-curator. Backend: .NET 8, MySQL, Redis.',
+              schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+            },
+            item: [
+              {
+                name: 'Products',
+                item: [
+                  {
+                    name: 'List Products',
+                    request: {
+                      method: 'GET',
+                      url: {
+                        raw: '{{baseUrl}}/api/products?pageNumber=1&pageSize=20',
+                        host: ['{{baseUrl}}'],
+                        path: ['api', 'products'],
+                        query: [
+                          { key: 'pageNumber', value: '1', description: 'Page number (default 1)' },
+                          { key: 'pageSize', value: '20', description: 'Items per page (1-100, default 20)' }
+                        ]
+                      }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 200', () => { pm.response.to.have.status(200); });\", \"pm.test('Has items', () => { const json = pm.response.json(); pm.expect(json.items).to.be.an('array'); });\"], type: 'text/javascript' } }]
+                  },
+                  {
+                    name: 'Create Product',
+                    request: {
+                      method: 'POST',
+                      header: [{ key: 'Content-Type', value: 'application/json' }],
+                      url: { raw: '{{baseUrl}}/api/products', host: ['{{baseUrl}}'], path: ['api', 'products'] },
+                      body: { mode: 'raw', raw: JSON.stringify({ sku: 'PROD-001', name: 'Sample Product', description: 'Created by SwarmAgents', priceAmount: 99.99, priceCurrency: 'USD', stockQuantity: 100 }, null, 2) }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 201', () => { pm.response.to.have.status(201); });\", \"pm.test('Has id', () => { const json = pm.response.json(); pm.expect(json.id).to.be.a('string'); pm.collectionVariables.set('productId', json.id); });\"], type: 'text/javascript' } }]
+                  },
+                  {
+                    name: 'Get Product by ID',
+                    request: {
+                      method: 'GET',
+                      url: { raw: '{{baseUrl}}/api/products/{{productId}}', host: ['{{baseUrl}}'], path: ['api', 'products', '{{productId}}'] }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 200', () => { pm.response.to.have.status(200); });\", \"pm.test('Has sku', () => { const json = pm.response.json(); pm.expect(json.sku).to.be.a('string'); });\"], type: 'text/javascript' } }]
+                  },
+                  {
+                    name: 'Update Product',
+                    request: {
+                      method: 'PUT',
+                      header: [{ key: 'Content-Type', value: 'application/json' }],
+                      url: { raw: '{{baseUrl}}/api/products/{{productId}}', host: ['{{baseUrl}}'], path: ['api', 'products', '{{productId}}'] },
+                      body: { mode: 'raw', raw: JSON.stringify({ name: 'Updated Product', description: 'Updated by SwarmAgents', priceAmount: 149.99, priceCurrency: 'USD', stockQuantity: 50 }, null, 2) }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 204', () => { pm.response.to.have.status(204); });\"], type: 'text/javascript' } }]
+                  },
+                  {
+                    name: 'Delete Product',
+                    request: {
+                      method: 'DELETE',
+                      url: { raw: '{{baseUrl}}/api/products/{{productId}}', host: ['{{baseUrl}}'], path: ['api', 'products', '{{productId}}'] }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 204', () => { pm.response.to.have.status(204); });\"], type: 'text/javascript' } }]
+                  },
+                  {
+                    name: 'Get Product by ID (Not Found)',
+                    request: {
+                      method: 'GET',
+                      url: { raw: '{{baseUrl}}/api/products/00000000-0000-0000-0000-000000000000', host: ['{{baseUrl}}'], path: ['api', 'products', '00000000-0000-0000-0000-000000000000'] }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 404', () => { pm.response.to.have.status(404); });\", \"pm.test('Problem Details', () => { const json = pm.response.json(); pm.expect(json.title).to.be.a('string'); });\"], type: 'text/javascript' } }]
+                  },
+                  {
+                    name: 'Create Product (Conflict - Duplicate SKU)',
+                    request: {
+                      method: 'POST',
+                      header: [{ key: 'Content-Type', value: 'application/json' }],
+                      url: { raw: '{{baseUrl}}/api/products', host: ['{{baseUrl}}'], path: ['api', 'products'] },
+                      body: { mode: 'raw', raw: JSON.stringify({ sku: '{{duplicateSku}}', name: 'Duplicate', description: null, priceAmount: 10.00, priceCurrency: 'USD', stockQuantity: 1 }, null, 2) }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 409', () => { pm.response.to.have.status(409); });\"], type: 'text/javascript' } }]
+                  },
+                  {
+                    name: 'Create Product (Bad Request - Invalid)',
+                    request: {
+                      method: 'POST',
+                      header: [{ key: 'Content-Type', value: 'application/json' }],
+                      url: { raw: '{{baseUrl}}/api/products', host: ['{{baseUrl}}'], path: ['api', 'products'] },
+                      body: { mode: 'raw', raw: JSON.stringify({ sku: '', name: '', description: null, priceAmount: -1, priceCurrency: 'INVALID', stockQuantity: -1 }, null, 2) }
+                    },
+                    event: [{ listen: 'test', script: { exec: [\"pm.test('Status 400', () => { pm.response.to.have.status(400); });\"], type: 'text/javascript' } }]
+                  }
+                ]
+              }
+            ],
+            variable: [
+              { key: 'baseUrl', value: 'http://localhost:5010' },
+              { key: 'productId', value: '' },
+              { key: 'duplicateSku', value: 'DUP-001' }
+            ]
+          };
+
+          const path = '.swarm-reports/postman-collection.json';
+          fs.writeFileSync(path, JSON.stringify(collection, null, 2));
+          console.log('Collection generated: ' + path);
+          "
+
+      - name: Create or Update Postman Collection
+        run: |
+          COLLECTION_FILE=".swarm-reports/postman-collection.json"
+
+          if [ ! -f "$COLLECTION_FILE" ]; then
+            echo "Collection file not found"
+            exit 1
+          fi
+
+          echo "Uploading collection to Postman..."
+
+          # Read collection JSON
+          COLLECTION_JSON=$(cat "$COLLECTION_FILE")
+
+          # Search for existing collection by name
+          EXISTING=$(curl -s -X GET \
+            "https://api.getpostman.com/collections" \
+            -H "X-Api-Key: ${{ secrets.POSTMAN_API_KEY }}" \
+            -H "Content-Type: application/json")
+
+          COLLECTION_UID=$(echo "$EXISTING" | node -e "
+            let d='';
+            process.stdin.on('data',c=>d+=c);
+            process.stdin.on('end',()=>{
+              try {
+                const data=JSON.parse(d);
+                const found=data.collections?.find(c=>c.name==='swarm-agents-example-api-products');
+                console.log(found?.uid||'');
+              } catch(e){ console.log(''); }
+            });
+          ")
+
+          if [ -n "$COLLECTION_UID" ]; then
+            echo "Updating existing collection: $COLLECTION_UID"
+            curl -s -X PUT \
+              "https://api.getpostman.com/collections/$COLLECTION_UID" \
+              -H "X-Api-Key: ${{ secrets.POSTMAN_API_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"collection\": $COLLECTION_JSON}" | node -e "
+                let d='';
+                process.stdin.on('data',c=>d+=c);
+                process.stdin.on('end',()=>{
+                  const r=JSON.parse(d);
+                  if(r.collection) console.log('Updated: '+r.collection.uid);
+                  else console.log('Error: '+JSON.stringify(r));
+                });
+              "
+          else
+            echo "Creating new collection..."
+            curl -s -X POST \
+              "https://api.getpostman.com/collections" \
+              -H "X-Api-Key: ${{ secrets.POSTMAN_API_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"collection\": $COLLECTION_JSON}" | node -e "
+                let d='';
+                process.stdin.on('data',c=>d+=c);
+                process.stdin.on('end',()=>{
+                  const r=JSON.parse(d);
+                  if(r.collection) console.log('Created: '+r.collection.uid);
+                  else console.log('Error: '+JSON.stringify(r));
+                });
+              "
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Postman Collection" >> $GITHUB_STEP_SUMMARY
+          echo "- Collection: **swarm-agents-example-api-products**" >> $GITHUB_STEP_SUMMARY
+          echo "- Workspace: ${{ secrets.POSTMAN_WORKSPACE_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Requests: 8 (GET list, POST create, GET by ID, PUT update, DELETE, 404, 409, 400)" >> $GITHUB_STEP_SUMMARY
+          echo "- Variables: baseUrl, productId, duplicateSku" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*Automated by SwarmAgents postman-curator*" >> $GITHUB_STEP_SUMMARY

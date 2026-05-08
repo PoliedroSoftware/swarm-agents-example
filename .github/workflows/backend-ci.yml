@@ -157,3 +157,10 @@ jobs:
           git config user.email "bot@swarmagents.dev"
           git add contracts/api.openapi.yaml
           git diff --cached --quiet || (git commit -m "chore: regenerate OpenAPI contract" && git push)
+
+      - name: Trigger Postman Collection Sync
+        if: success()
+        run: |
+          gh workflow run postman-collection.yml --ref main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
