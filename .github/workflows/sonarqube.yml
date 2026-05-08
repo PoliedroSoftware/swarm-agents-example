@@ -55,7 +55,7 @@ jobs:
           dotnet sonarscanner begin \
             /k:"PoliedroSoftwareSonarQube_swarm-agents-example" \
             /n:"SwarmAgents Backend" \
-            /o:"PoliedroSoftwareSonarQube" \
+            /o:"poliedrosoftwaresonarqube" \
             /d:sonar.host.url="$SONARQUBE_URL" \
             /d:sonar.token="$SONARQUBE_TOKEN" \
             /d:sonar.cs.opencover.reportsPaths="tests/**/coverage.opencover.xml" \
