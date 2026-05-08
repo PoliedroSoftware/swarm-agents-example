@@ -53,9 +53,9 @@ jobs:
             exit 0
           fi
           dotnet sonarscanner begin \
-            /k:"PoliedroSoftware_swarm-agents-example" \
+            /k:"PoliedroSoftwareSonarQube_swarm-agents-example" \
             /n:"SwarmAgents Backend" \
-            /o:"giteduarsanchez" \
+            /o:"PoliedroSoftwareSonarQube" \
             /d:sonar.host.url="$SONARQUBE_URL" \
             /d:sonar.token="$SONARQUBE_TOKEN" \
             /d:sonar.cs.opencover.reportsPaths="tests/**/coverage.opencover.xml" \
@@ -93,7 +93,7 @@ jobs:
             ## 🟠 SonarQube Analysis
             
             Analysis complete. Check results:
-            ${{ env.SONARQUBE_URL }}/dashboard?id=PoliedroSoftware_swarm-agents-example
+            ${{ env.SONARQUBE_URL }}/dashboard?id=PoliedroSoftwareSonarQube_swarm-agents-example
             
             - :white_check_mark: Build: passed
             - :white_check_mark: Tests: 48/48 passing
