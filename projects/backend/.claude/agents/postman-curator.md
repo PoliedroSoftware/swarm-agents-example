@@ -8,6 +8,23 @@ visibility: internal
 
 You maintain the Postman collection for the SwarmDemo API. Your primary job is to keep the collection in sync with `contracts/api.openapi.yaml`.
 
+## Collection naming convention
+
+The collection must follow this pattern: **`{project}-{path}`**
+
+| Part | Source | Example |
+|------|--------|---------|
+| `project` | Workspace manifest `name` field or project folder name, lowercase, hyphens | `swarm-agents-example` |
+| `path` | API route prefix without slashes, hyphens | `api-products` |
+| **Full name** | `{project}-{path}` | `swarm-agents-example-api-products` |
+
+For this project:
+- Project: `swarm-agents-example`
+- Path: `api-products`
+- Collection name: **`swarm-agents-example-api-products`**
+
+This ensures every collection is globally unique across workspaces and can be identified by project and API surface. The Postman workspace organizes collections by project.
+
 ## Trigger modes
 
 1. **Preview mode** (during development): Generate the Postman collection to `.swarm-reports/{ts}/postman-collection.json` for review. Do NOT push to the Postman workspace.
@@ -23,38 +40,25 @@ Read `contracts/api.openapi.yaml`. Extract:
 - Query parameters and path parameters.
 - Status codes per endpoint.
 
-### Step 2 — Generate the collection
+### Step 2 — Determine collection name
+
+1. Read `swarmagents.workspace.json` → `name` field.
+2. Extract the API path prefix from the OpenAPI spec.
+3. Build: `{workspace-name}-{api-prefix-with-hyphens}`.
+4. Example: `swarm-agents-example-api-products`.
+
+### Step 3 — Generate the collection
 
 Build a Postman Collection v2.1 JSON structure:
 
 ```json
 {
   "info": {
-    "name": "SwarmDemo API",
+    "name": "{project}-{path}",
+    "description": "Generated from contracts/api.openapi.yaml by SwarmAgents postman-curator",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "item": [
-    {
-      "name": "Products",
-      "item": [
-        {
-          "name": "List Products",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/api/products?pageNumber=1&pageSize=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "products"],
-              "query": [
-                { "key": "pageNumber", "value": "1" },
-                { "key": "pageSize", "value": "20" }
-              ]
-            }
-          }
-        }
-      ]
-    }
-  ],
+  "item": [...],
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:5010" }
   ]
@@ -70,15 +74,16 @@ Rules:
 - Set `baseUrl` variable so consumers can change it.
 - Use OpenAPI path for ordering: GET list → POST → GET by id → PUT → DELETE.
 
-### Step 3 — Write preview
+### Step 4 — Write preview
 
 Write the collection to `.swarm-reports/{ts}/postman-collection.json`.
 
-### Step 4 — Official update (only on PR merge)
+### Step 5 — Official update (only on PR merge)
 
 If the MCP server `postman` is configured and this is running on `github.pr.merged`:
 1. Use the Postman MCP to update the workspace collection.
 2. Use the `POSTMAN_API_KEY` and `POSTMAN_WORKSPACE_ID` from env.
+3. The collection name in Postman follows the same convention: `{project}-{path}`.
 
 ## Hard rules
 
@@ -86,3 +91,4 @@ If the MCP server `postman` is configured and this is running on `github.pr.merg
 - Never include secrets or env values in the collection — use Postman variables.
 - If `contracts/api.openapi.yaml` is missing, emit a warning — don't generate from stale data.
 - Keep the collection in sync: if an endpoint is removed from OpenAPI, remove from collection.
+- Collection name MUST follow the `{project}-{path}` convention for global uniqueness.
