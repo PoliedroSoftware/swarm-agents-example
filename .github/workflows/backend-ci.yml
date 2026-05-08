@@ -7,11 +7,13 @@ on:
       - 'projects/backend/**'
       - 'contracts/**'
       - 'docker-compose.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main, master]
     paths:
       - 'projects/backend/**'
       - 'contracts/**'
+  workflow_dispatch:
 
 env:
   DOTNET_VERSION: '8.0.x'

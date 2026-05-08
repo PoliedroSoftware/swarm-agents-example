@@ -6,10 +6,12 @@ on:
     paths:
       - 'projects/frontend/**'
       - 'contracts/api.openapi.yaml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main, master]
     paths:
       - 'projects/frontend/**'
+  workflow_dispatch:
 
 env:
   NODE_VERSION: '22'
