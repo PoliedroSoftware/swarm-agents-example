@@ -1,0 +1,73 @@
+{
+  "$schema": "https://swarmagents.dev/schema/workspace.json",
+  "name": "swarm-agents-example",
+  "version": "0.1.0",
+  "github": {
+    "owner": "PoliedroSoftware",
+    "repo": "swarm-agents-example"
+  },
+  "contracts": {
+    "openapi": "contracts/api.openapi.yaml"
+  },
+  "projects": [
+    {
+      "name": "backend",
+      "path": "projects/backend",
+      "stack": "dotnet",
+      "framework": "aspnetcore",
+      "produces": ["openapi"],
+      "consumes": [],
+      "agents": [
+        "planner",
+        "orchestrator",
+        "architect-reviewer",
+        "code-writer",
+        "test-writer",
+        "db-migrator",
+        "postman-curator",
+        "sonar-analyst",
+        "jmeter-runner",
+        "qa-tester",
+        "security-reviewer",
+        "final-reviewer"
+      ],
+      "mcps": ["github", "postman", "mysql", "filesystem"],
+      "infrastructure": {
+        "database": "mysql",
+        "cache": "redis"
+      }
+    },
+    {
+      "name": "frontend",
+      "path": "projects/frontend",
+      "stack": "angular",
+      "framework": "angular",
+      "produces": [],
+      "consumes": ["openapi"],
+      "agents": [
+        "planner",
+        "orchestrator",
+        "component-reviewer",
+        "code-writer",
+        "test-writer",
+        "a11y-auditor",
+        "perf-auditor",
+        "e2e-writer",
+        "qa-tester",
+        "security-reviewer",
+        "final-reviewer"
+      ],
+      "mcps": ["github", "filesystem"]
+    }
+  ],
+  "policies": {
+    "breakingChangeBehavior": "pause-and-ask",
+    "approvalGate": "risky-only",
+    "memoryWriters": ["planner", "final-reviewer", "security-reviewer"],
+    "postmanCuratorTrigger": "github.pr.merged",
+    "sonarTrigger": "implementation.complete"
+  },
+  "githubApp": {
+    "enabled": false
+  }
+}

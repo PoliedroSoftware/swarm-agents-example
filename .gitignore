@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+[Dd]ebug/
+[Rr]elease/
+
+# Angular
+.angular/
+coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+secrets/
+*.pem
+*.key
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/settings.local.json
+
+# SwarmAgents runtime
+.swarm-reports/
+.swarm-cache/
+
+# Docker volumes
+.docker-data/

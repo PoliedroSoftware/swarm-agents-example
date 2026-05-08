@@ -1,0 +1,6 @@
+@SwarmDemo.Api_HostAddress = http://localhost:5010
+
+GET {{SwarmDemo.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

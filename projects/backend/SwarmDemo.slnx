@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/SwarmDemo.Api.IntegrationTests/SwarmDemo.Api.IntegrationTests.csproj" />
+    <Project Path="tests/SwarmDemo.Application.Tests/SwarmDemo.Application.Tests.csproj" />
+    <Project Path="tests/SwarmDemo.Domain.Tests/SwarmDemo.Domain.Tests.csproj" />
+  </Folder>
+  <Project Path="SwarmDemo.Api/SwarmDemo.Api.csproj" />
+  <Project Path="SwarmDemo.Application/SwarmDemo.Application.csproj" />
+  <Project Path="SwarmDemo.Domain/SwarmDemo.Domain.csproj" />
+  <Project Path="SwarmDemo.Infrastructure/SwarmDemo.Infrastructure.csproj" />
+</Solution>
