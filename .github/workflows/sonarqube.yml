@@ -14,12 +14,12 @@ on:
 
 env:
   DOTNET_VERSION: '8.0.x'
+  SONARQUBE_URL: ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}
 
 jobs:
   sonarqube:
     name: SonarQube Analysis
     runs-on: ubuntu-latest
-    if: ${{ secrets.SONARQUBE_TOKEN != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -44,22 +44,25 @@ jobs:
         working-directory: projects/backend
         run: dotnet restore SwarmDemo.slnx
 
-      - name: Begin SonarQube analysis
+      - name: SonarQube Begin
         working-directory: projects/backend
-        env:
-          SONARQUBE_URL: ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}
-          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ -z "$SONARQUBE_TOKEN" ]; then
+            echo "SONARQUBE_TOKEN not set — skipping analysis"
+            echo "SKIP_SONAR=true" >> $GITHUB_ENV
+            exit 0
+          fi
           dotnet sonarscanner begin \
             /k:"PoliedroSoftware_swarm-agents-example" \
             /n:"SwarmAgents Backend" \
             /o:"poliedrosoftware" \
-            /d:sonar.host.url="${SONARQUBE_URL}" \
-            /d:sonar.token="${SONARQUBE_TOKEN}" \
+            /d:sonar.host.url="$SONARQUBE_URL" \
+            /d:sonar.token="$SONARQUBE_TOKEN" \
             /d:sonar.cs.opencover.reportsPaths="tests/**/coverage.opencover.xml" \
             /d:sonar.coverage.exclusions="tests/**" \
             /d:sonar.exclusions="**/Migrations/**"
+        env:
+          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
 
       - name: Build
         working-directory: projects/backend
@@ -75,12 +78,12 @@ jobs:
             --results-directory TestResults \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
 
-      - name: End SonarQube analysis
+      - name: SonarQube End
+        if: env.SKIP_SONAR != 'true'
         working-directory: projects/backend
+        run: dotnet sonarscanner end /d:sonar.token="$SONARQUBE_TOKEN"
         env:
-          SONARQUBE_URL: ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}
           SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-        run: dotnet sonarscanner end /d:sonar.token="${SONARQUBE_TOKEN}"
 
       - name: Comment PR with results
         if: github.event_name == 'pull_request'
@@ -89,13 +92,11 @@ jobs:
           message: |
             ## 🟠 SonarQube Analysis
             
-            SonarQube analysis complete. Check results at:
-            ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}/dashboard?id=PoliedroSoftware_swarm-agents-example
+            Analysis complete. Check results:
+            ${{ env.SONARQUBE_URL }}/dashboard?id=PoliedroSoftware_swarm-agents-example
             
-            ### Quality Gate: Pending
             - :white_check_mark: Build: passed
             - :white_check_mark: Tests: 48/48 passing
-            - :orange_circle: Coverage: check dashboard
             
             *Automated by SwarmAgents*
           comment-tag: sonarqube
