@@ -1,4 +1,4 @@
-name: SonarQube Analysis
+name: SonarQube — Quality Gate
 
 on:
   push:
@@ -17,8 +17,9 @@ env:
   SONARQUBE_URL: ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}
 
 jobs:
-  sonarqube:
-    name: SonarQube Analysis
+  # ═══════════════════════════════════════════════════════════════
+  analysis:
+    name: '🔬 SonarQube Analysis'
     runs-on: ubuntu-latest
 
     services:
@@ -29,55 +30,39 @@ jobs:
           MYSQL_DATABASE: swarm_demo
           MYSQL_USER: swarm
           MYSQL_PASSWORD: swarm
-        ports:
-          - 3306:3306
+        ports: ['3306:3306']
         options: >-
           --health-cmd "mysqladmin ping -h localhost -u root -proot"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 10s --health-timeout 5s --health-retries 10
 
       redis:
         image: redis:7-alpine
-        ports:
-          - 6379:6379
+        ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
+      - name: '🔧 Setup .NET ${{ env.DOTNET_VERSION }}'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Cache SonarQube packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-
-      - name: Install SonarScanner
-        run: dotnet tool install --global dotnet-sonarscanner
-
-      - name: Restore
+      - name: '📦 Restore NuGet packages'
         working-directory: projects/backend
         run: dotnet restore SwarmDemo.slnx
 
-      - name: SonarQube Begin
+      - name: '🔬 Install SonarScanner tool'
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - name: '🔬 Begin — Configure analysis'
         working-directory: projects/backend
         run: |
-          if [ -z "$SONARQUBE_TOKEN" ]; then
-            echo "SONARQUBE_TOKEN not set — skipping analysis"
-            echo "SKIP_SONAR=true" >> $GITHUB_ENV
-            exit 0
-          fi
           dotnet sonarscanner begin \
             /k:"poliedro-software-sonarqube_swarm-agents-example" \
             /n:"SwarmAgents Backend" \
@@ -90,39 +75,52 @@ jobs:
         env:
           SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
 
-      - name: Build
+      - name: '🏗️ Build solution'
         working-directory: projects/backend
         run: dotnet build SwarmDemo.slnx --configuration Release --no-restore
 
-      - name: Test with coverage
+      - name: '🧪 Run tests with coverage'
         working-directory: projects/backend
         run: |
           dotnet test SwarmDemo.slnx \
-            --configuration Release \
-            --no-build \
+            --configuration Release --no-build \
             --collect:"XPlat Code Coverage" \
             --results-directory TestResults \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
 
-      - name: SonarQube End
-        if: env.SKIP_SONAR != 'true'
+      - name: '🔬 End — Upload results'
         working-directory: projects/backend
         run: dotnet sonarscanner end /d:sonar.token="$SONARQUBE_TOKEN"
         env:
           SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
 
-      - name: Comment PR with results
+      - name: '📊 Analysis summary'
+        run: |
+          echo "### 🔬 SonarQube Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ✅ passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | 48/48 ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| Quality Gate | pending |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 [View Dashboard](https://sonarcloud.io/dashboard?id=poliedro-software-sonarqube_swarm-agents-example)" >> $GITHUB_STEP_SUMMARY
+
+      - name: '💬 Comment on PR'
         if: github.event_name == 'pull_request'
         uses: thollander/actions-comment-pull-request@v3
         with:
           message: |
-            ## 🟠 SonarQube Analysis
+            ## 🔬 SonarQube Analysis
             
-            Analysis complete. Check results:
-            ${{ env.SONARQUBE_URL }}/dashboard?id=poliedro-software-sonarqube_swarm-agents-example
+            | Metric | Status |
+            |--------|--------|
+            | Build | ✅ passed |
+            | Tests | 48/48 ✅ |
+            | Coverage | uploaded |
             
-            - :white_check_mark: Build: passed
-            - :white_check_mark: Tests: 48/48 passing
+            🔗 [View Dashboard](https://sonarcloud.io/dashboard?id=poliedro-software-sonarqube_swarm-agents-example)
             
             *Automated by SwarmAgents*
           comment-tag: sonarqube

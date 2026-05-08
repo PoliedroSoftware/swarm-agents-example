@@ -1,4 +1,4 @@
-name: Skill Checker
+name: Skills — Checker
 
 on:
   pull_request:
@@ -8,15 +8,11 @@ on:
       - 'skills/**'
       - '.claude/agents/**'
   workflow_dispatch:
-    inputs:
-      project:
-        description: 'Project to analyze (backend, frontend, or all)'
-        required: false
-        default: 'all'
 
 jobs:
-  analyze-skills:
-    name: Analyze Project Skills
+  # ═══════════════════════════════════════════════════════════════
+  analyze:
+    name: '🔍 Skill Checker'
     runs-on: ubuntu-latest
 
     permissions:
@@ -24,82 +20,75 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
 
-      - name: Detect project stacks
+      # ── Step 1: Detect all projects ──
+      - name: '🔍 Step 1 — Detect project stacks'
         id: detect
         run: |
           echo "## 🔍 SwarmAgents Skill Analysis" > skill-report.md
           echo "" >> skill-report.md
 
-          # Analyze backend
+          # Backend
           if [ -d "projects/backend" ]; then
-            echo "### Backend" >> skill-report.md
+            echo "### 🔧 Backend" >> skill-report.md
             echo "| Detection | Result |" >> skill-report.md
             echo "|-----------|--------|" >> skill-report.md
+            echo "| Stack | .NET 8 / ASP.NET Core |" >> skill-report.md
+            echo "| Required skill | \`dotnet-backend\` |" >> skill-report.md
 
-            if ls projects/backend/*.csproj projects/backend/*.slnx projects/backend/*.sln 2>/dev/null | head -1 > /dev/null; then
-              echo "| Stack | .NET 8 / ASP.NET Core |" >> skill-report.md
-              echo "| Framework | Clean Architecture + CQRS |" >> skill-report.md
-              echo "| Required skill | \`dotnet-backend\` |" >> skill-report.md
-              if [ -f "skills/dotnet/SKILL.md" ]; then
-                echo "| Skill status | ✅ Installed |" >> skill-report.md
-              else
-                echo "| Skill status | ❌ Missing — run: \`git clone https://github.com/PoliedroSoftware/swarm-agents-skills.git skills\` |" >> skill-report.md
-              fi
-              echo "| Unlocked agents | 12 (planner, orchestrator, code-writer, test-writer, architect-reviewer, db-migrator, postman-curator, sonar-analyst, jmeter-runner, qa-tester, security-reviewer, final-reviewer) |" >> skill-report.md
+            if [ -f "skills/dotnet/SKILL.md" ]; then
+              echo "| Status | ✅ Installed |" >> skill-report.md
+            else
+              echo "| Status | ❌ Missing |" >> skill-report.md
+              echo "| Install | \`git clone https://github.com/PoliedroSoftware/swarm-agents-skills.git skills\` |" >> skill-report.md
             fi
+            echo "| Agents | 12 (planner, orchestrator, code-writer, test-writer, architect-reviewer, db-migrator, postman-curator, sonar-analyst, jmeter-runner, qa-tester, security-reviewer, final-reviewer) |" >> skill-report.md
             echo "" >> skill-report.md
           fi
 
-          # Analyze frontend
-          if [ -d "projects/frontend" ]; then
-            echo "### Frontend" >> skill-report.md
+          # Frontend
+          if [ -d "projects/frontend" ] && [ -f "projects/frontend/angular.json" ]; then
+            NG_VERSION=$(grep -oP '"@angular/core":\s*"\^\K[^"]+' projects/frontend/package.json 2>/dev/null || echo "detected")
+            echo "### 🎨 Frontend" >> skill-report.md
             echo "| Detection | Result |" >> skill-report.md
             echo "|-----------|--------|" >> skill-report.md
+            echo "| Stack | Angular $NG_VERSION |" >> skill-report.md
+            echo "| Required skill | \`angular-frontend\` |" >> skill-report.md
 
-            if [ -f "projects/frontend/angular.json" ]; then
-              echo "| Stack | Angular" >> skill-report.md
-              NG_VERSION=$(grep -oP '"@angular/core":\s*"\^\K[^"]+' projects/frontend/package.json 2>/dev/null || echo "detected")
-              echo "| Version | $NG_VERSION |" >> skill-report.md
-              echo "| Required skill | \`angular-frontend\` |" >> skill-report.md
-              if [ -f "skills/angular/SKILL.md" ]; then
-                echo "| Skill status | ✅ Installed |" >> skill-report.md
-              else
-                echo "| Skill status | ❌ Missing — run: \`git clone https://github.com/PoliedroSoftware/swarm-agents-skills.git skills\` |" >> skill-report.md
-              fi
-              echo "| Unlocked agents | 11 (planner, orchestrator, code-writer, test-writer, component-reviewer, a11y-auditor, perf-auditor, e2e-writer, qa-tester, security-reviewer, final-reviewer) |" >> skill-report.md
+            if [ -f "skills/angular/SKILL.md" ]; then
+              echo "| Status | ✅ Installed |" >> skill-report.md
+            else
+              echo "| Status | ❌ Missing |" >> skill-report.md
+              echo "| Install | \`git clone https://github.com/PoliedroSoftware/swarm-agents-skills.git skills\` |" >> skill-report.md
             fi
+            echo "| Agents | 11 (planner, orchestrator, code-writer, test-writer, component-reviewer, a11y-auditor, perf-auditor, e2e-writer, qa-tester, security-reviewer, final-reviewer) |" >> skill-report.md
             echo "" >> skill-report.md
           fi
 
-          # Skills catalog
-          echo "### Available skill packs" >> skill-report.md
+      # ── Step 2: Catalog available skills ──
+      - name: '📚 Step 2 — Catalog available skill packs'
+        run: |
+          echo "### 📚 Available skill packs" >> skill-report.md
           echo "| Skill | Stack | Status | Agents |" >> skill-report.md
           echo "|-------|-------|--------|--------|" >> skill-report.md
 
           for dir in skills/*/; do
             name=$(basename "$dir")
-            skill_file="${dir}SKILL.md"
-            placeholder="${dir}PLACEHOLDER.md"
-            if [ -f "$skill_file" ]; then
+            if [ -f "${dir}SKILL.md" ]; then
               echo "| $name | $name | ✅ Ready | See SKILL.md |" >> skill-report.md
-            elif [ -f "$placeholder" ]; then
+            elif [ -f "${dir}PLACEHOLDER.md" ]; then
               echo "| $name | $name | 🔜 Coming soon | Planned |" >> skill-report.md
             fi
           done
 
           echo "" >> skill-report.md
-          echo "### How to use skills" >> skill-report.md
-          echo '```bash' >> skill-report.md
-          echo "# Install missing skills" >> skill-report.md
-          echo "git clone https://github.com/PoliedroSoftware/swarm-agents-skills.git skills" >> skill-report.md
-          echo '```' >> skill-report.md
-          echo "" >> skill-report.md
           echo "---" >> skill-report.md
-          echo "*Automated by SwarmAgents Skill Checker — [docs](https://poliedrosoftware.github.io/swarm-agents-skills/)*" >> skill-report.md
+          echo "*🔍 Automated by SwarmAgents Skill Checker — [docs](https://poliedrosoftware.github.io/swarm-agents-skills/)*" >> skill-report.md
 
-      - name: Post skill report
+      # ── Step 3: Post to PR ──
+      - name: '💬 Step 3 — Post skill report to PR'
         if: github.event_name == 'pull_request'
         uses: thollander/actions-comment-pull-request@v3
         with:
@@ -107,5 +96,5 @@ jobs:
           comment-tag: swarm-skills
           mode: recreate
 
-      - name: Summary
+      - name: '📊 Summary'
         run: cat skill-report.md >> $GITHUB_STEP_SUMMARY

@@ -1,4 +1,4 @@
-name: Frontend CI
+name: Frontend CI — Angular 21
 
 on:
   push:
@@ -15,38 +15,59 @@ on:
 
 env:
   NODE_VERSION: '22'
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/swarm-frontend
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 1 — Install, Build, Test
+  # ═══════════════════════════════════════════════════════════════
   build-and-test:
-    name: Build & Test (Angular)
+    name: '1️⃣ Build & Test'
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: '🔧 Setup Node.js ${{ env.NODE_VERSION }}'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: projects/frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: '📦 Install dependencies (npm ci)'
         working-directory: projects/frontend
         run: npm ci
 
-      - name: Build
+      - name: '🏗️ Build production (ng build)'
         working-directory: projects/frontend
         run: npm run build
 
-      - name: Test
+      - name: '🧪 Run tests (vitest)'
         working-directory: projects/frontend
-        run: npm test -- --run --reporter=verbose || echo "Tests not configured yet"
+        run: npm test -- --run --reporter=verbose || echo "⚠️ Tests not configured yet"
 
+      - name: '📊 Bundle size report'
+        run: |
+          echo "### Bundle Size" >> $GITHUB_STEP_SUMMARY
+          echo "| Chunk | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|------|" >> $GITHUB_STEP_SUMMARY
+          for f in projects/frontend/dist/frontend/browser/*.js; do
+            size=$(du -k "$f" | cut -f1)
+            name=$(basename "$f")
+            echo "| $name | ${size} KB |" >> $GITHUB_STEP_SUMMARY
+          done
+          for f in projects/frontend/dist/frontend/browser/*.css; do
+            size=$(du -k "$f" | cut -f1)
+            name=$(basename "$f")
+            echo "| $name | ${size} KB |" >> $GITHUB_STEP_SUMMARY
+          done
+
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 2 — Docker Build & Push
+  # ═══════════════════════════════════════════════════════════════
   docker:
-    name: Build & Push Docker
+    name: '2️⃣ Docker Build & Push'
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -56,62 +77,76 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
 
-      - name: Set lowercase image name
-        id: vars
+      - name: '🏷️ Prepare image tags'
+        id: tags
         run: |
           owner="${{ github.repository_owner }}"
-          echo "image=${REGISTRY,,}/${owner,,}/swarm-frontend" >> $GITHUB_OUTPUT
+          echo "ghcr=ghcr.io/${owner,,}/swarm-frontend" >> $GITHUB_OUTPUT
+          echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
 
-      - name: Log in to GHCR
+      - name: '🔐 Login — GitHub Container Registry'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKER_USERNAME != '' }}
+      - name: '🔐 Login — Docker Hub'
+        if: secrets.DOCKER_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push frontend image
+      - name: '🐳 Build & Push frontend image (Angular + nginx)'
         uses: docker/build-push-action@v6
         with:
           context: projects/frontend
           push: true
           tags: |
-            ${{ steps.vars.outputs.image }}:${{ github.sha }}
-            ${{ steps.vars.outputs.image }}:latest
-            ${{ secrets.DOCKER_USERNAME }}/swarm-frontend:${{ github.sha }}
+            ${{ steps.tags.outputs.ghcr }}:${{ steps.tags.outputs.sha }}
+            ${{ steps.tags.outputs.ghcr }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/swarm-frontend:${{ steps.tags.outputs.sha }}
             ${{ secrets.DOCKER_USERNAME }}/swarm-frontend:latest
 
+      - name: '📊 Docker summary'
+        run: |
+          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | Image | Tags |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| GHCR | swarm-frontend | latest, \${{ steps.tags.outputs.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Hub | \${{ secrets.DOCKER_USERNAME }}/swarm-frontend | latest, \${{ steps.tags.outputs.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 3 — Deploy to Vercel
+  # ═══════════════════════════════════════════════════════════════
   deploy-vercel:
-    name: Deploy to Vercel
+    name: '3️⃣ Deploy to Vercel'
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.VERCEL_TOKEN != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: '🔧 Setup Node.js ${{ env.NODE_VERSION }}'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
+      - name: '📦 Install dependencies'
         working-directory: projects/frontend
         run: npm ci
 
-      - name: Build
+      - name: '🏗️ Build for Vercel'
         working-directory: projects/frontend
         run: npm run build
 
-      - name: Deploy to Vercel
+      - name: '🚀 Deploy to Vercel (production)'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -119,3 +154,9 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           working-directory: projects/frontend
           vercel-args: '--prod'
+
+      - name: '📊 Deploy summary'
+        run: |
+          echo "### Vercel Deploy" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 https://frontend-poliedros-projects.vercel.app" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ✅ deployed" >> $GITHUB_STEP_SUMMARY

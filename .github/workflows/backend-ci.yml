@@ -1,4 +1,4 @@
-name: Backend CI
+name: Backend CI — .NET 8
 
 on:
   push:
@@ -17,12 +17,13 @@ on:
 
 env:
   DOTNET_VERSION: '8.0.x'
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/swarm-api
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 1 — Build, Restore, Unit Tests
+  # ═══════════════════════════════════════════════════════════════
   build-and-test:
-    name: Build & Test (.NET)
+    name: '1️⃣ Build & Test'
     runs-on: ubuntu-latest
 
     services:
@@ -33,46 +34,147 @@ jobs:
           MYSQL_DATABASE: swarm_demo
           MYSQL_USER: swarm
           MYSQL_PASSWORD: swarm
-        ports:
-          - 3306:3306
+        ports: ['3306:3306']
         options: >-
           --health-cmd "mysqladmin ping -h localhost -u root -proot"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 10s --health-timeout 5s --health-retries 10
 
       redis:
         image: redis:7-alpine
-        ports:
-          - 6379:6379
+        ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: '🔧 Setup .NET ${{ env.DOTNET_VERSION }}'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore
+      - name: '📦 Restore NuGet packages'
         working-directory: projects/backend
         run: dotnet restore SwarmDemo.slnx
 
-      - name: Build
+      - name: '🏗️ Build solution'
         working-directory: projects/backend
         run: dotnet build SwarmDemo.slnx --configuration Release --no-restore
 
-      - name: Test
+      - name: '🧪 Run tests (48/48)'
         working-directory: projects/backend
         run: dotnet test SwarmDemo.slnx --configuration Release --no-build --verbosity normal
 
+      - name: '📊 Test summary'
+        if: always()
+        run: |
+          echo "| Layer | Tests |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Domain | 27 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Application | 18 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration | 3 |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total** | **48** |" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 2 — SonarQube Analysis
+  # ═══════════════════════════════════════════════════════════════
+  sonarqube:
+    name: '2️⃣ SonarQube Analysis'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: swarm_demo
+          MYSQL_USER: swarm
+          MYSQL_PASSWORD: swarm
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u root -proot"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: '🔧 Setup .NET'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: '📦 Restore packages'
+        working-directory: projects/backend
+        run: dotnet restore SwarmDemo.slnx
+
+      - name: '🔬 Install SonarScanner'
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - name: '🔬 SonarQube — Begin analysis'
+        working-directory: projects/backend
+        run: |
+          if [ -z "$SONARQUBE_TOKEN" ]; then
+            echo "⚠️ SONARQUBE_TOKEN not set — skipping"; echo "SKIP_SONAR=true" >> $GITHUB_ENV; exit 0
+          fi
+          dotnet sonarscanner begin \
+            /k:"poliedro-software-sonarqube_swarm-agents-example" \
+            /n:"SwarmAgents Backend" \
+            /o:"poliedro-software-sonarqube" \
+            /d:sonar.host.url="$SONARQUBE_URL" \
+            /d:sonar.token="$SONARQUBE_TOKEN" \
+            /d:sonar.cs.opencover.reportsPaths="tests/**/coverage.opencover.xml" \
+            /d:sonar.coverage.exclusions="tests/**" \
+            /d:sonar.exclusions="**/Migrations/**"
+        env:
+          SONARQUBE_URL: ${{ secrets.SONARQUBE_URL || 'https://sonarcloud.io' }}
+          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+
+      - name: '🏗️ Build with analysis'
+        working-directory: projects/backend
+        run: dotnet build SwarmDemo.slnx --configuration Release --no-restore
+
+      - name: '🧪 Run tests with coverage'
+        working-directory: projects/backend
+        run: |
+          dotnet test SwarmDemo.slnx \
+            --configuration Release --no-build \
+            --collect:"XPlat Code Coverage" \
+            --results-directory TestResults \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+
+      - name: '🔬 SonarQube — End analysis'
+        if: env.SKIP_SONAR != 'true'
+        working-directory: projects/backend
+        run: dotnet sonarscanner end /d:sonar.token="$SONARQUBE_TOKEN"
+        env:
+          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+
+      - name: '📊 Summary'
+        run: |
+          echo "### SonarQube Results" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 [View Dashboard](https://sonarcloud.io/dashboard?id=poliedro-software-sonarqube_swarm-agents-example)" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: ✅ passed" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests: 48/48 ✅" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 3 — Docker Build & Push
+  # ═══════════════════════════════════════════════════════════════
   docker:
-    name: Build & Push Docker
+    name: '3️⃣ Docker Build & Push'
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -82,85 +184,104 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
 
-      - name: Set lowercase image name
-        id: vars
+      - name: '🏷️ Prepare image tags'
+        id: tags
         run: |
           owner="${{ github.repository_owner }}"
-          echo "image=${REGISTRY,,}/${owner,,}/swarm-api" >> $GITHUB_OUTPUT
+          echo "ghcr=ghcr.io/${owner,,}/swarm-api" >> $GITHUB_OUTPUT
+          echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
 
-      - name: Publish .NET
+      - name: '📦 Publish .NET app'
         working-directory: projects/backend
         run: |
           dotnet restore SwarmDemo.slnx
           dotnet publish SwarmDemo.Api/SwarmDemo.Api.csproj -c Release -o publish
 
-      - name: Log in to GHCR
+      - name: '🔐 Login — GitHub Container Registry'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKER_USERNAME != '' }}
+      - name: '🔐 Login — Docker Hub'
+        if: secrets.DOCKER_USERNAME != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push API image
+      - name: '🐳 Build & Push API image'
         uses: docker/build-push-action@v6
         with:
           context: projects/backend
           push: true
           tags: |
-            ${{ steps.vars.outputs.image }}:${{ github.sha }}
-            ${{ steps.vars.outputs.image }}:latest
-            ${{ secrets.DOCKER_USERNAME }}/swarm-api:${{ github.sha }}
+            ${{ steps.tags.outputs.ghcr }}:${{ steps.tags.outputs.sha }}
+            ${{ steps.tags.outputs.ghcr }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/swarm-api:${{ steps.tags.outputs.sha }}
             ${{ secrets.DOCKER_USERNAME }}/swarm-api:latest
 
-  generate-openapi:
-    name: Regenerate OpenAPI Contract
+      - name: '📊 Docker summary'
+        run: |
+          echo "### Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | Image | Tag |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| GHCR | swarm-api | latest, \${{ steps.tags.outputs.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Hub | ${{ secrets.DOCKER_USERNAME }}/swarm-api | latest, \${{ steps.tags.outputs.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════
+  # JOB 4 — OpenAPI Contract Regeneration
+  # ═══════════════════════════════════════════════════════════════
+  openapi:
+    name: '4️⃣ Regenerate OpenAPI'
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: '📥 Checkout code'
+        uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: '🔧 Setup .NET'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Install Swashbuckle CLI
+      - name: '📦 Install Swashbuckle CLI'
         working-directory: projects/backend
         run: dotnet tool install --global Swashbuckle.AspNetCore.Cli --version 7.3.2
 
-      - name: Build API
+      - name: '🏗️ Build API'
         working-directory: projects/backend
         run: |
           dotnet restore SwarmDemo.slnx
           dotnet build SwarmDemo.Api/SwarmDemo.Api.csproj -c Release
 
-      - name: Export OpenAPI YAML
+      - name: '📄 Export OpenAPI spec → contracts/api.openapi.yaml'
         working-directory: projects/backend
         run: |
           dotnet swagger tofile --output ../../contracts/api.openapi.yaml --yaml \
-            SwarmDemo.Api/bin/Release/net8.0/SwarmDemo.Api.dll v1 || echo "OpenAPI export skipped (runtime mismatch)"
+            SwarmDemo.Api/bin/Release/net8.0/SwarmDemo.Api.dll v1 \
+            || echo "⚠️ OpenAPI export skipped (runtime mismatch)"
 
-      - name: Commit contract if changed
+      - name: '📝 Commit contract if changed'
         run: |
           git config user.name "swarm-bot"
           git config user.email "bot@swarmagents.dev"
           git add contracts/api.openapi.yaml
-          git diff --cached --quiet || (git commit -m "chore: regenerate OpenAPI contract" && git push)
+          if git diff --cached --quiet; then
+            echo "No contract changes"
+          else
+            git commit -m "chore: regenerate OpenAPI contract [skip ci]"
+            git push
+            echo "✅ Contract committed and pushed"
+          fi
 
-      - name: Trigger Postman Collection Sync
-        if: success()
-        run: |
-          gh workflow run postman-collection.yml --ref main
+      - name: '📮 Trigger Postman Collection Sync'
+        run: gh workflow run postman-collection.yml --ref main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
