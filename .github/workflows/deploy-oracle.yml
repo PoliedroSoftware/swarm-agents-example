@@ -5,7 +5,6 @@ on:
     branches: [main, master]
     paths:
       - 'projects/backend/**'
-      - 'docker-compose.yml'
       - 'docker-compose.prod.yml'
       - '.github/workflows/deploy-oracle.yml'
   workflow_dispatch:
@@ -25,18 +24,17 @@ jobs:
       - name: '📥 Checkout code'
         uses: actions/checkout@v4
 
-      # ── Step 1: Copy compose file to server ──
+      # ── Step 1: Copy compose file ──
       - name: '📤 Step 1 — Copy docker-compose.prod.yml to server'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USER }}
-          password: ${{ secrets.ORACLE_PASSWORD }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
           source: 'docker-compose.prod.yml'
           target: '/home/ubuntu/'
           overwrite: true
-          timeout: 30s
 
       # ── Step 2: Pull images + restart stack ──
       - name: '🐳 Step 2 — Pull latest images'
@@ -44,24 +42,29 @@ jobs:
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USER }}
-          password: ${{ secrets.ORACLE_PASSWORD }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
-          timeout: 120s
           script: |
+            set -e
             echo "🚀 Starting Oracle Cloud deploy..."
+            echo ""
+
+            # ── Login to Docker Hub (pull public images) ──
+            echo "🔐 Logging into Docker Hub..."
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin 2>/dev/null || true
             echo ""
 
             # ── Pull latest images ──
             echo "📥 Pulling images..."
-            docker pull ${{ env.DOCKER_IMAGE_API }} || echo "⚠️ API image pull failed"
-            docker pull ${{ env.DOCKER_IMAGE_MYSQL }} || echo "⚠️ MySQL image pull failed"
-            docker pull ${{ env.DOCKER_IMAGE_REDIS }} || echo "⚠️ Redis image pull failed"
-            echo "✅ Images pulled"
+            docker pull ${{ env.DOCKER_IMAGE_MYSQL }}
+            docker pull ${{ env.DOCKER_IMAGE_REDIS }}
+            docker pull ${{ env.DOCKER_IMAGE_API }}
+            echo "✅ All images pulled"
             echo ""
 
-            # ── Stop existing containers ──
+            # ── Stop existing stack ──
             echo "🛑 Stopping existing containers..."
-            docker compose -f /home/ubuntu/docker-compose.prod.yml down --remove-orphans || true
+            docker compose -f /home/ubuntu/docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
             echo ""
 
             # ── Start stack ──
@@ -71,31 +74,41 @@ jobs:
 
             # ── Wait for health ──
             echo "⏳ Waiting for services to be healthy..."
-            sleep 10
-
-            # ── Check status ──
+            sleep 15
+            
+            # ── Show status ──
             echo "📊 Container status:"
             docker compose -f /home/ubuntu/docker-compose.prod.yml ps
             echo ""
 
             # ── Health check API ──
-            echo "🔍 Testing API..."
-            curl -s http://localhost:5010/api/products?pageSize=1 || echo "⚠️ API not reachable yet"
+            echo "🔍 Testing API health..."
+            for i in 1 2 3 4 5; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5010/api/products?pageSize=1 2>/dev/null || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ API responding (HTTP 200)"
+                break
+              fi
+              echo "⏳ Attempt $i: HTTP $STATUS — waiting..."
+              sleep 5
+            done
             echo ""
 
             echo "✅ Deploy to Oracle Cloud complete!"
 
-      # ── Step 3: Verify deployment ──
+      # ── Step 3: Verify public access ──
       - name: '🔍 Step 3 — Verify API from public'
         run: |
           echo "🔍 Testing public API..."
-          sleep 5
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.ORACLE_HOST }}:5010/api/products || echo "000")
-          if [ "$RESPONSE" = "200" ]; then
-            echo "✅ API responding (HTTP 200)"
-          else
-            echo "⚠️ API returned HTTP $RESPONSE — check firewall rules (port 5010)"
-          fi
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.ORACLE_HOST }}:5010/api/products 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Public API OK (HTTP 200)"
+              break
+            fi
+            echo "⏳ Attempt $i: HTTP $STATUS"
+            sleep 5
+          done
 
       # ── Step 4: Summary ──
       - name: '📊 Deploy summary'
@@ -106,7 +119,7 @@ jobs:
           echo "|---------|-------|------|" >> $GITHUB_STEP_SUMMARY
           echo "| MySQL | mysql:8.0 | 3306 |" >> $GITHUB_STEP_SUMMARY
           echo "| Redis | redis:7-alpine | 6379 |" >> $GITHUB_STEP_SUMMARY
-          echo "| API | ${{ env.DOCKER_IMAGE_API }} | 5010 |" >> $GITHUB_STEP_SUMMARY
+          echo "| API | swarm-api:latest | 5010 |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 **API**: http://${{ secrets.ORACLE_HOST }}:5010/swagger" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 **API Products**: http://${{ secrets.ORACLE_HOST }}:5010/api/products" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Swagger**: http://${{ secrets.ORACLE_HOST }}:5010/swagger" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Products**: http://${{ secrets.ORACLE_HOST }}:5010/api/products" >> $GITHUB_STEP_SUMMARY
