@@ -45,7 +45,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Default: Server=mysql;Port=3306;Database=${MYSQL_DATABASE:-swarm_demo};Uid=${MYSQL_USER:-swarm};Pwd=${MYSQL_PASSWORD:-swarm};
       ConnectionStrings__Redis: redis:6379
