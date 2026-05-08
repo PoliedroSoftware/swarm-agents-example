@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://swarm-api-poliedrosoftware.vercel.app/api/:path*"
+    }
+  ],
+  "framework": "angular",
+  "outputDirectory": "dist/frontend/browser"
+}
