@@ -9,6 +9,7 @@ out/
 # .NET
 bin/
 obj/
+publish/
 *.user
 *.suo
 *.userosscache
@@ -52,3 +53,6 @@ Thumbs.db
 
 # Docker volumes
 .docker-data/
+
+# Skills (separate repo)
+skills/

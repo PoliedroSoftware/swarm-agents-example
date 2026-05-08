@@ -15,6 +15,10 @@
         "POSTMAN_API_KEY": "${POSTMAN_API_KEY}"
       }
     },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
     "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
@@ -54,12 +58,17 @@
       "Bash(npm *)",
       "Bash(npx *)",
       "Bash(node *)",
+      "Bash(gh *)",
+      "Bash(docker *)",
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(git log *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "WebFetch(*github.com*)",
+      "Bash(curl *)",
+      "Bash(dotnet *)"
     ],
     "deny": []
   }

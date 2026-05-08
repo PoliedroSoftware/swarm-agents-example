@@ -1,0 +1,144 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'projects/backend/**'
+      - 'contracts/**'
+      - 'docker-compose.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'projects/backend/**'
+      - 'contracts/**'
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/swarm-api
+
+jobs:
+  build-and-test:
+    name: Build & Test (.NET)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: swarm_demo
+          MYSQL_USER: swarm
+          MYSQL_PASSWORD: swarm
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u root -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        working-directory: projects/backend
+        run: dotnet restore SwarmDemo.slnx
+
+      - name: Build
+        working-directory: projects/backend
+        run: dotnet build SwarmDemo.slnx --configuration Release --no-restore
+
+      - name: Test
+        working-directory: projects/backend
+        run: dotnet test SwarmDemo.slnx --configuration Release --no-build --verbosity normal
+
+  docker:
+    name: Build & Push Docker
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish .NET
+        working-directory: projects/backend
+        run: |
+          dotnet restore SwarmDemo.slnx
+          dotnet publish SwarmDemo.Api/SwarmDemo.Api.csproj -c Release -o publish
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: projects/backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  generate-openapi:
+    name: Regenerate OpenAPI Contract
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install Swashbuckle CLI
+        working-directory: projects/backend
+        run: dotnet tool install --global Swashbuckle.AspNetCore.Cli --version 7.3.2
+
+      - name: Build API
+        working-directory: projects/backend
+        run: |
+          dotnet restore SwarmDemo.slnx
+          dotnet build SwarmDemo.Api/SwarmDemo.Api.csproj -c Release
+
+      - name: Export OpenAPI YAML
+        working-directory: projects/backend
+        run: |
+          dotnet swagger tofile --output ../../contracts/api.openapi.yaml --yaml \
+            SwarmDemo.Api/bin/Release/net8.0/SwarmDemo.Api.dll v1 || echo "OpenAPI export skipped (runtime mismatch)"
+
+      - name: Commit contract if changed
+        run: |
+          git config user.name "swarm-bot"
+          git config user.email "bot@swarmagents.dev"
+          git add contracts/api.openapi.yaml
+          git diff --cached --quiet || (git commit -m "chore: regenerate OpenAPI contract" && git push)

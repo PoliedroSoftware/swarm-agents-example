@@ -52,6 +52,17 @@ services:
     ports:
       - "5010:8080"
 
+  frontend:
+    build:
+      context: ./projects/frontend
+      dockerfile: Dockerfile
+    container_name: swarm-demo-frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${FRONTEND_PORT:-4200}:80"
+
 volumes:
   mysql-data:
   redis-data:

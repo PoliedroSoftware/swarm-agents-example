@@ -41,7 +41,7 @@ Defined in `.claude/agents/` (Phase 1+):
 - `postman-curator` (internal, runs only on PR merge).
 - `sonar-analyst`, `jmeter-runner` (internal, runs in parallel with tests).
 - `qa-tester` (public).
-- `security-reviewer` (internal, can block independently).
+- `security-reviewer` (public, can block independently).
 - `final-reviewer` (internal, runs last).
 
 For cross-project work (anything that may touch the frontend), invoke the workspace-level `workspace-planner` instead.

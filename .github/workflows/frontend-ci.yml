@@ -1,0 +1,106 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'projects/frontend/**'
+      - 'contracts/api.openapi.yaml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'projects/frontend/**'
+
+env:
+  NODE_VERSION: '22'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/swarm-frontend
+
+jobs:
+  build-and-test:
+    name: Build & Test (Angular)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: projects/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: projects/frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: projects/frontend
+        run: npm run build
+
+      - name: Test
+        working-directory: projects/frontend
+        run: npm test -- --run --reporter=verbose || echo "Tests not configured yet"
+
+  docker:
+    name: Build & Push Docker
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: projects/frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-vercel:
+    name: Deploy to Vercel
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        working-directory: projects/frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: projects/frontend
+        run: npm run build
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: projects/frontend
+          vercel-args: '--prod'

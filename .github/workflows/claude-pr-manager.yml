@@ -1,0 +1,184 @@
+name: Claude Code PR Manager
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issues:
+    types: [opened]
+
+jobs:
+  swarm-review:
+    name: SwarmAgents PR Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Analyze PR changes
+        id: analyze
+        run: |
+          echo "## PR Analysis by SwarmAgents" > review.md
+          echo "" >> review.md
+
+          # ── Changed files ──
+          echo "### Files changed" >> review.md
+          git diff --name-only origin/${{ github.base_ref }}...HEAD | head -30 >> review.md
+          echo "" >> review.md
+
+          # ── Classification ──
+          echo "### Change classification" >> review.md
+
+          CLASSIFICATION="additive"
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "contracts/api.openapi.yaml"; then
+            echo "- :warning: **Contract changed** — verify with contract-guardian" >> review.md
+            CLASSIFICATION="risky"
+          fi
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "projects/backend/"; then
+            echo "- :package: **Backend changes** — $(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'projects/backend/' | wc -l) files" >> review.md
+          fi
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "projects/frontend/"; then
+            echo "- :art: **Frontend changes** — $(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep 'projects/frontend/' | wc -l) files" >> review.md
+          fi
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "\.claude/agents/"; then
+            echo "- :robot: **Agent definitions modified** — review agent behavior" >> review.md
+          fi
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "skills/"; then
+            echo "- :books: **Skill packs updated** — agents may have new patterns" >> review.md
+          fi
+
+          # ── Skill analysis ──
+          echo "" >> review.md
+          echo "### Required skill packs" >> review.md
+          echo "| Project | Stack | Skill | Status |" >> review.md
+          echo "|---------|-------|-------|--------|" >> review.md
+
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "projects/backend/"; then
+            if [ -f "skills/dotnet/SKILL.md" ]; then
+              echo "| Backend | .NET 8 | dotnet-backend | ✅ Installed |" >> review.md
+            else
+              echo "| Backend | .NET 8 | dotnet-backend | ❌ Missing |" >> review.md
+            fi
+          fi
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "projects/frontend/"; then
+            if [ -f "skills/angular/SKILL.md" ]; then
+              echo "| Frontend | Angular 21 | angular-frontend | ✅ Installed |" >> review.md
+            else
+              echo "| Frontend | Angular 21 | angular-frontend | ❌ Missing |" >> review.md
+            fi
+          fi
+
+          # ── Suggested swarm commands ──
+          echo "" >> review.md
+          echo "### Suggested workflow" >> review.md
+          echo '```' >> review.md
+          echo "/swarm-plan \"Review this PR and verify changes\"" >> review.md
+          echo "/swarm-run" >> review.md
+          echo '```' >> review.md
+
+          # ── Labels ──
+          echo "" >> review.md
+          echo "### Labels" >> review.md
+          echo "- \`auto-reviewed\`" >> review.md
+          if [ "$CLASSIFICATION" = "risky" ]; then
+            echo "- \`breaking\` (contract changed)" >> review.md
+          fi
+
+          echo "" >> review.md
+          echo "---" >> review.md
+          echo "*Automated by SwarmAgents PR Manager — [docs](https://poliedrosoftware.github.io/swarm-agents-skills/)*" >> review.md
+
+      - name: Post PR review comment
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          file-path: review.md
+          comment-tag: swarm-review
+          mode: recreate
+
+      - name: Add labels
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: auto-reviewed
+
+  swarm-issue:
+    name: SwarmAgents Issue Triage
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues'
+
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Triage new issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+
+            let labels = ['triage'];
+
+            if (title.includes('bug') || title.includes('error') || title.includes('fix'))
+              labels.push('bug');
+            if (title.includes('feature') || title.includes('add') || title.includes('new'))
+              labels.push('enhancement');
+            if (title.includes('backend') || title.includes('api') || title.includes('.net'))
+              labels.push('backend');
+            if (title.includes('frontend') || title.includes('ui') || title.includes('angular'))
+              labels.push('frontend');
+            if (title.includes('security') || title.includes('vuln'))
+              labels.push('security');
+            if (title.includes('skill') || title.includes('pattern') || title.includes('best practice'))
+              labels.push('skill-request');
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: labels
+            });
+
+            // Build skill recommendation section
+            let skillSection = '';
+            if (labels.includes('backend')) {
+              skillSection += `- 🔧 Backend work → requires **dotnet-backend** skill pack (12 agents unlocked)\n`;
+            }
+            if (labels.includes('frontend')) {
+              skillSection += `- 🎨 Frontend work → requires **angular-frontend** skill pack (11 agents unlocked)\n`;
+            }
+            if (labels.includes('skill-request')) {
+              skillSection += `- 📚 Skill request → use \`/swarm-plan "analyze skills needed" \` with the skill-analyzer agent\n`;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `## SwarmAgents Triage
+
+            Issue classified: **${labels.join(', ')}**
+
+            ${skillSection ? '### Required skills\n' + skillSection : ''}
+            ### Suggested workflow
+            \`\`\`
+            /swarm-plan "${issue.title}"
+            /swarm-run
+            \`\`\`
+
+            *Automated by SwarmAgents PR Manager*`
+            });

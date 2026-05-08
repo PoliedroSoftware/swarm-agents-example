@@ -1,37 +1,119 @@
 # SwarmAgents Example Workspace
 
-This is a **demo workspace** that exercises the [SwarmAgents framework](https://github.com/PoliedroSoftware/swarm-agents) on a real .NET + Angular stack.
+A working demo of the [SwarmAgents framework](https://github.com/PoliedroSoftware/swarm-agents) — agent-orchestration for Claude Code, applied to a real .NET + Angular stack. Everything ships in containers so a client can clone, run, and explore in two commands.
 
-## Architecture in one paragraph
+## What's inside
 
-A workspace-level **planner** (Opus) receives any request and produces a typed plan. A workspace-level **orchestrator** (Sonnet) dispatches to project-level orchestrators (`backend/orchestrator`, `frontend/orchestrator`) and to cross-cutting agents (`contract-guardian`, `cross-impact-analyzer`, `security-reviewer`). Each project's executors do the actual work; **reviewers** (Opus) sign off. Cross-project sync (e.g. backend API change → frontend service regeneration) flows through `contracts/api.openapi.yaml`.
+- **Backend** — .NET 8 Web API with Clean Architecture (Domain / Application / Infrastructure / Api), MediatR, FluentValidation, EF Core 8 over MySQL, Redis cache.
+- **Frontend** — Angular 21 consuming the backend through generated OpenAPI clients. Standalone components, signals, Tailwind CSS.
+- **Workspace agents** — planner (Opus), orchestrator, contract-guardian, cross-impact-analyzer, security-reviewer, final-reviewer.
+- **Contracts** — `contracts/api.openapi.yaml` is the source of truth synced between back and front.
+- **Fully containerized** — `docker compose up` brings up MySQL, Redis, API, and frontend (nginx).
+
+## Quickstart
+
+```bash
+git clone https://github.com/PoliedroSoftware/swarm-agents-example.git
+cd swarm-agents-example
+cp .env.example .env       # fill in ANTHROPIC_API_KEY and GITHUB_TOKEN at minimum
+docker compose up -d
+```
+
+- Frontend: http://localhost:4200
+- API + Swagger: http://localhost:5010/swagger
+- MySQL: localhost:3306 (user `swarm`, password from `.env`)
+- Redis: localhost:6379
+
+## Claude Code GitHub Integration
+
+Claude Code can manage PRs, issues, and commits when configured with a GitHub token.
+
+### Setup
+
+1. Add `GITHUB_TOKEN` to your `.env` file (classic token with `repo`, `issues`, `pull_requests` scopes).
+2. Claude Code reads `.claude/settings.json` which wires `GITHUB_TOKEN` into the GitHub MCP server.
+3. The `gh` CLI is permitted via `Bash(gh *)` in settings.
+
+### Capabilities
+
+| Action | Command |
+|--------|---------|
+| Create issue | `gh issue create --title "..." --body "..."` |
+| List PRs | `gh pr list` |
+| Review PR | `gh pr review {N} --approve|--comment|--request-changes` |
+| Add labels | `gh issue edit {N} --add-label "breaking"` |
+| Post comment | `gh issue comment {N} --body "..."` |
+| Create branch | `gh pr checkout {N}` |
+| View diff | `gh pr diff {N}` |
+| Merge PR | `gh pr merge {N} --squash` |
+
+### SwarmAgents workflow with GitHub
+
+```
+Developer opens PR
+  └─ GitHub Action "Claude Code PR Manager"
+       ├─ Analyzes changed files
+       ├─ Classifies: additive | breaking | risky
+       ├─ Posts review comment with findings
+       └─ Adds auto-reviewed label
+
+Developer comments: /swarm-plan "Add feature X"
+  └─ workspace-planner creates plan, posts as issue comment
+
+Developer comments: /swarm-run
+  └─ Orchestrator dispatches agents, posts results
+
+CI completes: tests pass + docker images pushed to GHCR
+  └─ PR ready to merge
+```
+
+## GitHub Actions CI/CD
+
+| Workflow | Trigger | Actions |
+|----------|---------|---------|
+| `backend-ci.yml` | Push/PR to `projects/backend/**` | Build, test, docker push to GHCR, regenerate OpenAPI |
+| `frontend-ci.yml` | Push/PR to `projects/frontend/**` | Build, test, docker push to GHCR, deploy to Vercel |
+| `claude-pr-manager.yml` | PR opened/synced, Issue opened | Analyze PR, classify changes, triage issues, post comments |
+
+## Docker Registry (GHCR)
+
+Images are pushed to GitHub Container Registry:
+- `ghcr.io/poliedrosoftware/swarm-api:latest`
+- `ghcr.io/poliedrosoftware/swarm-frontend:latest`
+
+Pull and run:
+```bash
+docker pull ghcr.io/poliedrosoftware/swarm-api:latest
+docker pull ghcr.io/poliedrosoftware/swarm-frontend:latest
+```
 
 ## Repo layout
 
-- `projects/backend/` — .NET 8 Web API (CRUD of Products against MySQL, Redis cache, Clean Architecture).
-- `projects/frontend/` — Angular app consuming the backend.
-- `contracts/` — OpenAPI spec, source of truth between backend and frontend.
-- `.claude/` — workspace-level SwarmAgents agents, skills, MCP settings.
-- `docker-compose.yml` — MySQL + Redis + API for local development and client demos.
+```
+projects/
+├── backend/                  .NET 8 Web API — CRUD of Products
+│   ├── SwarmDemo.Domain/
+│   ├── SwarmDemo.Application/
+│   ├── SwarmDemo.Infrastructure/
+│   ├── SwarmDemo.Api/
+│   ├── tests/                xUnit + Testcontainers
+│   └── Dockerfile
+└── frontend/                 Angular 21 client
+    ├── src/app/
+    ├── Dockerfile
+    └── nginx.conf
 
-## Conventions
+contracts/
+├── api.openapi.yaml          source of truth between back and front
+└── api.openapi.snapshot.yaml last accepted state
 
-- **Plan-first**: never write code without an approved plan from a planner agent. Executors only run after a plan exists.
-- **Visibility**: agents declare `visibility: public | internal` in frontmatter. The runtime refuses direct user invocation of internal agents.
-- **Memory**: only planners and reviewers write to `.claude/memory/`. Executors read.
-- **Contracts**: backend regenerates `contracts/api.openapi.yaml` after any API change; `contract-guardian` diffs against the snapshot; `cross-impact-analyzer` translates changes into frontend tasks.
-- **Breaking changes**: pause-and-ask the user before propagating across projects.
-- **Postman**: collection updates are preview-only during dev. Official workspace updates run only on `github.pr.merged`.
-- **Sonar**: runs in parallel with tests, before any reviewer agent.
-- **Security**: dedicated `security-reviewer` agent — separate from `final-reviewer`. Can block on its own.
-- **Containers everywhere**: anything a client might run locally must be reachable via `docker compose up`. Tests use Testcontainers; nothing assumes a host-installed MySQL or Redis.
+.claude/                      SwarmAgents runtime + agents + settings
+.github/workflows/            CI/CD pipelines
+skills/                       Technology skill packs (separate repo)
 
-## Where to start
+swarmagents.workspace.json    workspace manifest read by the framework
+```
 
-- For backend work: `cd projects/backend`, see its `CLAUDE.md`.
-- For frontend work: `cd projects/frontend`, see its `CLAUDE.md`.
-- For end-to-end / cross-cutting work: invoke the `workspace-planner` agent.
+## License
 
-## Environment
-
-Copy `.env.example` to `.env` and fill in API keys. `.claude/settings.json` references env vars via `${VAR}` substitution to wire MCP servers. Env vars must be present in the shell that launches Claude Code, or sourced via `docker compose --env-file .env`.
+MIT — see [LICENSE](./LICENSE).

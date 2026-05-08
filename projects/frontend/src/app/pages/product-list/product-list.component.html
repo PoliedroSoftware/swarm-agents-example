@@ -1,0 +1,90 @@
+<div class="max-w-6xl mx-auto p-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Products</h1>
+    <a routerLink="/products/new"
+       class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+      + New Product
+    </a>
+  </div>
+
+  @if (products.error(); as error) {
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      {{ error }}
+      <button (click)="products.clearError()" class="ml-2 underline text-red-800">Dismiss</button>
+    </div>
+  }
+
+  @if (products.loading()) {
+    <div class="flex justify-center py-12">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"></div>
+    </div>
+  }
+
+  @if (products.page(); as page) {
+    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">SKU</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Name</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Price</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Stock</th>
+            <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @for (product of page.items; track product.id) {
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-4 py-3 font-mono text-sm text-gray-700">{{ product.sku }}</td>
+              <td class="px-4 py-3 text-sm text-gray-800">
+                <div class="font-medium">{{ product.name }}</div>
+                @if (product.description) {
+                  <div class="text-xs text-gray-400 truncate max-w-xs">{{ product.description }}</div>
+                }
+              </td>
+              <td class="px-4 py-3 text-right text-sm text-gray-700">
+                {{ product.priceAmount | number:'1.2-2' }} {{ product.priceCurrency }}
+              </td>
+              <td class="px-4 py-3 text-right text-sm">
+                <span [class.text-red-600]="product.stockQuantity === 0"
+                      [class.text-gray-700]="product.stockQuantity > 0">
+                  {{ product.stockQuantity }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <a [routerLink]="['/products', product.id, 'edit']"
+                   class="mr-2 text-sm text-blue-600 hover:text-blue-800 underline">Edit</a>
+                <button (click)="deleteProduct(product.id, product.name)"
+                        class="text-sm text-red-600 hover:text-red-800 underline">Delete</button>
+              </td>
+            </tr>
+          }
+          @if (page.items.length === 0) {
+            <tr>
+              <td colspan="5" class="px-4 py-12 text-center text-sm text-gray-400">
+                No products found.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mt-4 flex items-center justify-between text-sm text-gray-500">
+      <span>Page {{ page.pageNumber }} of {{ page.totalPages }} ({{ page.totalCount }} total)</span>
+      <div class="flex gap-2">
+        <button (click)="products.loadList(page.pageNumber - 1)"
+                [disabled]="!page.hasPreviousPage"
+                class="rounded border px-3 py-1 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+          Previous
+        </button>
+        <button (click)="products.loadList(page.pageNumber + 1)"
+                [disabled]="!page.hasNextPage"
+                class="rounded border px-3 py-1 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+          Next
+        </button>
+      </div>
+    </div>
+  }
+</div>
