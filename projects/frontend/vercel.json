@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://swarm-api-poliedrosoftware.vercel.app/api/:path*"
+      "destination": "http://149.130.186.53:5010/api/:path*"
     }
   ],
   "framework": "angular",
