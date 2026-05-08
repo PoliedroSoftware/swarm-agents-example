@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SwarmDemo.Application\SwarmDemo.Application.csproj" />
+    <ProjectReference Include="..\..\SwarmDemo.Domain\SwarmDemo.Domain.csproj" />
   </ItemGroup>
 
 </Project>
