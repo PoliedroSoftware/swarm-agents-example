@@ -5,7 +5,10 @@ using SwarmDemo.Domain.Products;
 
 namespace SwarmDemo.Application.Products.Commands.DeleteProduct;
 
-public sealed class DeleteProductCommandHandler(IProductsRepository repository, IUnitOfWork unitOfWork)
+public sealed class DeleteProductCommandHandler(
+    IProductsRepository repository,
+    IUnitOfWork unitOfWork,
+    IProductsCache cache)
     : IRequestHandler<DeleteProductCommand>
 {
     public async Task Handle(DeleteProductCommand request, CancellationToken ct)
@@ -15,5 +18,6 @@ public sealed class DeleteProductCommandHandler(IProductsRepository repository, 
 
         repository.Remove(product);
         await unitOfWork.SaveChangesAsync(ct);
+        await cache.RemoveAsync(request.Id, ct);
     }
 }

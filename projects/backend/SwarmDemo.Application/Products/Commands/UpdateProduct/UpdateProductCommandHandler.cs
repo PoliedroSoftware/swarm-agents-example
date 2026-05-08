@@ -6,7 +6,10 @@ using SwarmDemo.Domain.Products.ValueObjects;
 
 namespace SwarmDemo.Application.Products.Commands.UpdateProduct;
 
-public sealed class UpdateProductCommandHandler(IProductsRepository repository, IUnitOfWork unitOfWork)
+public sealed class UpdateProductCommandHandler(
+    IProductsRepository repository,
+    IUnitOfWork unitOfWork,
+    IProductsCache cache)
     : IRequestHandler<UpdateProductCommand>
 {
     public async Task Handle(UpdateProductCommand request, CancellationToken ct)
@@ -21,5 +24,6 @@ public sealed class UpdateProductCommandHandler(IProductsRepository repository, 
             request.StockQuantity);
 
         await unitOfWork.SaveChangesAsync(ct);
+        await cache.RemoveAsync(request.Id, ct);
     }
 }

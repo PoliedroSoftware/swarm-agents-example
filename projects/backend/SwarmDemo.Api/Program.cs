@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using SwarmDemo.Api.Middleware;
 using SwarmDemo.Application;
 using SwarmDemo.Infrastructure;
+using SwarmDemo.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,14 +16,17 @@ builder.Services
 
 var app = builder.Build();
 
-app.UseMiddleware<ExceptionHandlingMiddleware>();
-
 if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 

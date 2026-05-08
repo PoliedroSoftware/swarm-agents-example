@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SwarmDemo.Application.Common.Abstractions;
+using SwarmDemo.Infrastructure.Caching;
 using SwarmDemo.Infrastructure.Persistence;
 using SwarmDemo.Infrastructure.Persistence.Repositories;
 
@@ -11,14 +12,28 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("Default")
+        var dbConnection = configuration.GetConnectionString("Default")
             ?? throw new InvalidOperationException("Connection string 'Default' is missing.");
 
         services.AddDbContext<AppDbContext>(options =>
-            options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36))));
+            options.UseMySql(
+                dbConnection,
+                new MySqlServerVersion(new Version(8, 0, 36)),
+                mysql => mysql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)));
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<IProductsRepository, ProductsRepository>();
+
+        var redisConnection = configuration.GetConnectionString("Redis")
+            ?? throw new InvalidOperationException("Connection string 'Redis' is missing.");
+
+        services.AddStackExchangeRedisCache(options =>
+        {
+            options.Configuration = redisConnection;
+            options.InstanceName = "swarm-demo:";
+        });
+
+        services.AddScoped<IProductsCache, RedisProductsCache>();
 
         return services;
     }

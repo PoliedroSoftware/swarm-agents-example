@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/*.user
+**/.idea/
+**/tests/
+**/.env
+**/.env.local
+README.md
