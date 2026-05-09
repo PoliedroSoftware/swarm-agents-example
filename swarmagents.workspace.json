@@ -29,6 +29,7 @@
         "jmeter-runner",
         "qa-tester",
         "security-reviewer",
+        "redis-cache-manager",
         "final-reviewer"
       ],
       "mcps": ["github", "postman", "mysql", "filesystem"],

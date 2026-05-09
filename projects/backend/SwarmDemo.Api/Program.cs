@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 using SwarmDemo.Api.Middleware;
 using SwarmDemo.Application;
 using SwarmDemo.Infrastructure;
@@ -21,10 +22,10 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
-
-    app.MapOpenApi();
-    app.MapScalarApiReference();
 }
+
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseAuthorization();

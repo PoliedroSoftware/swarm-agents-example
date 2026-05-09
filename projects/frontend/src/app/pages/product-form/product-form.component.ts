@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@ang
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ProductsService } from '../../services/products.service';
+import { ToastService } from '../../services/toast.service';
 import { CreateProductRequest, UpdateProductRequest } from '../../models/product.model';
 
 @Component({
@@ -16,6 +17,7 @@ export class ProductFormComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly products = inject(ProductsService);
+  protected readonly toast = inject(ToastService);
 
   readonly isEditing = signal(false);
   readonly submitted = signal(false);
@@ -70,6 +72,7 @@ export class ProductFormComponent {
         stockQuantity: raw.stockQuantity,
       };
       ok = await this.products.update(this.productId()!, req);
+      if (ok) this.toast.show('Product updated successfully', 'success');
     } else {
       const req: CreateProductRequest = {
         sku: raw.sku,
@@ -81,11 +84,10 @@ export class ProductFormComponent {
       };
       const created = await this.products.create(req);
       ok = created !== null;
+      if (ok) this.toast.show('Product created successfully', 'success');
     }
 
-    if (ok) {
-      this.router.navigate(['/products']);
-    }
+    if (ok) this.router.navigate(['/products']);
   }
 
   ctrl(name: string) { return this.form.get(name); }
