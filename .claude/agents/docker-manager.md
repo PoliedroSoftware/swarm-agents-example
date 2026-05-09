@@ -34,15 +34,17 @@ For each service, determine:
 - Target image name
 - Registry tags needed
 
-### Step 2 — Build images
+### Step 2 — Build images (always from scratch, no cache)
+
+**CRITICAL: Always rebuild from scratch locally.** Use `--no-cache` to ignore Docker layer cache and `--pull` to always fetch the latest base images.
 
 ```bash
-# Parallel build via docker compose (preferred)
-docker compose build
+# Full rebuild via docker compose (preferred)
+docker compose build --no-cache --pull
 
 # Or individual builds
-docker build -t swarm-api:latest -f projects/backend/Dockerfile projects/backend/
-docker build -t swarm-frontend:latest -f projects/frontend/Dockerfile projects/frontend/
+docker build --no-cache --pull -t swarm-api:latest -f projects/backend/Dockerfile projects/backend/
+docker build --no-cache --pull -t swarm-frontend:latest -f projects/frontend/Dockerfile projects/frontend/
 ```
 
 Before building, check:
@@ -127,8 +129,8 @@ docker compose ps
 # View logs
 docker compose logs --tail=50
 
-# Rebuild a service
-docker compose up -d --build api
+# Rebuild a service (always from scratch)
+docker compose up -d --build --no-cache api
 
 # Stop all
 docker compose down
@@ -215,6 +217,7 @@ Write `.swarm-reports/{ts}/docker-report.md`:
 
 ## Hard rules
 
+- **Always rebuild from scratch locally** — use `--no-cache --pull` on every `docker compose build` and `docker build`.
 - Never push without tagging first.
 - Never use `latest` tag in production deployments — always use SHA or version tags.
 - Never include `.env` or secrets in Docker images.
