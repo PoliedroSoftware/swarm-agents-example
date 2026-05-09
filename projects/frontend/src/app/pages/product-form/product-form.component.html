@@ -1,92 +1,125 @@
-<div class="max-w-lg mx-auto p-6">
-  <h1 class="text-2xl font-bold text-gray-800 mb-6">
-    {{ isEditing() ? 'Edit Product' : 'New Product' }}
-  </h1>
+<div class="max-w-2xl mx-auto animate-fade-in-up">
+  <!-- Header -->
+  <div class="mb-8">
+    <a routerLink="/products" class="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 transition-colors mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Back to Products
+    </a>
+    <h2 class="text-2xl font-bold text-slate-900">{{ isEditing() ? 'Edit Product' : 'New Product' }}</h2>
+    <p class="text-slate-500 mt-1">{{ isEditing() ? 'Update product details below.' : 'Fill in the details to create a new product.' }}</p>
+  </div>
 
+  <!-- Error banner -->
   @if (products.error(); as error) {
-    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm">
-      {{ error }}
-      <button (click)="products.clearError()" class="ml-2 underline">Dismiss</button>
+    <div class="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 mb-6">
+      <span class="text-red-500 text-lg flex-shrink-0">⚠️</span>
+      <div class="flex-1">
+        <p class="text-sm font-medium text-red-800">Error saving product</p>
+        <p class="text-xs text-red-600 mt-0.5">{{ error }}</p>
+      </div>
+      <button (click)="products.clearError()" class="text-red-400 hover:text-red-600 transition-colors p-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
   }
 
-  <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
+  <!-- Form -->
+  <form [formGroup]="form" (ngSubmit)="submit()" class="card p-8 space-y-6">
     <!-- SKU -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">SKU <span class="text-red-400">*</span></label>
       <input formControlName="sku"
-             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:text-gray-400"
+             [class.input-error]="error('sku')"
+             class="input-field font-mono disabled:bg-slate-50 disabled:text-slate-400"
              placeholder="PROD-001" />
       @if (error('sku'); as e) {
-        <p class="mt-1 text-xs text-red-600">{{ e }}</p>
+        <p class="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+          <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+          {{ e }}
+        </p>
       }
     </div>
 
     <!-- Name -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">Name <span class="text-red-400">*</span></label>
       <input formControlName="name"
-             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+             [class.input-error]="error('name')"
+             class="input-field"
              placeholder="Product name" />
       @if (error('name'); as e) {
-        <p class="mt-1 text-xs text-red-600">{{ e }}</p>
+        <p class="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+          <svg class="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+          {{ e }}
+        </p>
       }
     </div>
 
     <!-- Description -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">Description</label>
       <textarea formControlName="description" rows="3"
-                class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                placeholder="Optional description"></textarea>
+                class="input-field resize-none"
+                placeholder="Optional description of the product"></textarea>
       @if (error('description'); as e) {
-        <p class="mt-1 text-xs text-red-600">{{ e }}</p>
+        <p class="mt-1.5 text-xs text-red-500">{{ e }}</p>
       }
     </div>
 
-    <!-- Price + Currency -->
-    <div class="grid grid-cols-3 gap-3">
+    <!-- Price + Currency row -->
+    <div class="grid grid-cols-3 gap-4">
       <div class="col-span-2">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Price</label>
-        <input type="number" step="0.01" formControlName="priceAmount"
-               class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-               placeholder="0.00" />
+        <label class="block text-sm font-semibold text-slate-700 mb-2">Price <span class="text-red-400">*</span></label>
+        <div class="relative">
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+          <input type="number" step="0.01" formControlName="priceAmount"
+                 [class.input-error]="error('priceAmount')"
+                 class="input-field pl-8" placeholder="0.00" />
+        </div>
         @if (error('priceAmount'); as e) {
-          <p class="mt-1 text-xs text-red-600">{{ e }}</p>
+          <p class="mt-1.5 text-xs text-red-500">{{ e }}</p>
         }
       </div>
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">Currency</label>
         <input formControlName="priceCurrency"
-               class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-               placeholder="USD" maxlength="3" />
+               [class.input-error]="error('priceCurrency')"
+               class="input-field" placeholder="USD" maxlength="3" />
         @if (error('priceCurrency'); as e) {
-          <p class="mt-1 text-xs text-red-600">{{ e }}</p>
+          <p class="mt-1.5 text-xs text-red-500">{{ e }}</p>
         }
       </div>
     </div>
 
     <!-- Stock -->
     <div>
-      <label class="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">Stock Quantity <span class="text-red-400">*</span></label>
       <input type="number" formControlName="stockQuantity"
-             class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-             placeholder="0" />
+             [class.input-error]="error('stockQuantity')"
+             class="input-field" placeholder="0" />
       @if (error('stockQuantity'); as e) {
-        <p class="mt-1 text-xs text-red-600">{{ e }}</p>
+        <p class="mt-1.5 text-xs text-red-500">{{ e }}</p>
       }
     </div>
 
-    <!-- Buttons -->
-    <div class="flex items-center justify-between pt-4">
+    <!-- Actions -->
+    <div class="flex items-center justify-between pt-6 border-t border-slate-100">
       <a routerLink="/products"
-         class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+         class="px-6 py-3 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100
+                rounded-xl transition-all duration-200">
         Cancel
       </a>
       <button type="submit"
               [disabled]="products.loading()"
-              class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
-        {{ products.loading() ? 'Saving...' : (isEditing() ? 'Update' : 'Create') }}
+              class="btn-primary">
+        @if (products.loading()) {
+          <span class="flex items-center gap-2">
+            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+            Saving...
+          </span>
+        } @else {
+          {{ isEditing() ? 'Update Product' : 'Create Product' }}
+        }
       </button>
     </div>
   </form>

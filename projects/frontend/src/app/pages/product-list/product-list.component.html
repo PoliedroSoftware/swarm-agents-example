@@ -1,90 +1,159 @@
-<div class="max-w-6xl mx-auto p-6">
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-gray-800">Products</h1>
-    <a routerLink="/products/new"
-       class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
-      + New Product
-    </a>
+<div class="animate-fade-in-up space-y-6">
+  <!-- Header + Search -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-slate-900">Products</h2>
+      <p class="text-slate-500 mt-1">{{ products.page()?.totalCount ?? 0 }} products total</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" placeholder="Search products..."
+               [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)"
+               class="pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 text-sm
+                      focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200
+                      outline-none bg-white w-56 transition-all duration-200" />
+      </div>
+      <a routerLink="/products/new" class="btn-primary text-sm !px-4 !py-2.5 whitespace-nowrap">
+        + New Product
+      </a>
+    </div>
   </div>
 
+  <!-- Error banner -->
   @if (products.error(); as error) {
-    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
-      {{ error }}
-      <button (click)="products.clearError()" class="ml-2 underline text-red-800">Dismiss</button>
+    <div class="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4">
+      <span class="text-red-500 text-lg flex-shrink-0">⚠️</span>
+      <div class="flex-1">
+        <p class="text-sm font-medium text-red-800">Error loading products</p>
+        <p class="text-xs text-red-600 mt-0.5">{{ error }}</p>
+      </div>
+      <button (click)="products.clearError()" class="text-red-400 hover:text-red-600 transition-colors p-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
   }
 
+  <!-- Loading skeleton -->
   @if (products.loading()) {
-    <div class="flex justify-center py-12">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600"></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      @for (i of [1,2,3,4,5,6]; track i) {
+        <div class="card p-6 animate-pulse">
+          <div class="flex items-start justify-between mb-4">
+            <div class="h-3 bg-slate-200 rounded w-20"></div>
+            <div class="h-3 bg-slate-200 rounded w-12"></div>
+          </div>
+          <div class="h-5 bg-slate-200 rounded w-3/4 mb-3"></div>
+          <div class="h-3 bg-slate-200 rounded w-full mb-2"></div>
+          <div class="h-3 bg-slate-200 rounded w-2/3 mb-4"></div>
+          <div class="flex justify-between">
+            <div class="h-8 bg-slate-200 rounded w-16"></div>
+            <div class="h-8 bg-slate-200 rounded w-24"></div>
+          </div>
+        </div>
+      }
     </div>
   }
 
-  @if (products.page(); as page) {
-    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">SKU</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Name</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Price</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Stock</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-500">Actions</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          @for (product of page.items; track product.id) {
-            <tr class="hover:bg-gray-50 transition-colors">
-              <td class="px-4 py-3 font-mono text-sm text-gray-700">{{ product.sku }}</td>
-              <td class="px-4 py-3 text-sm text-gray-800">
-                <div class="font-medium">{{ product.name }}</div>
-                @if (product.description) {
-                  <div class="text-xs text-gray-400 truncate max-w-xs">{{ product.description }}</div>
-                }
-              </td>
-              <td class="px-4 py-3 text-right text-sm text-gray-700">
-                {{ product.priceAmount | number:'1.2-2' }} {{ product.priceCurrency }}
-              </td>
-              <td class="px-4 py-3 text-right text-sm">
-                <span [class.text-red-600]="product.stockQuantity === 0"
-                      [class.text-gray-700]="product.stockQuantity > 0">
-                  {{ product.stockQuantity }}
+  <!-- Empty state -->
+  @if (!products.loading() && products.items().length === 0) {
+    <div class="text-center py-20">
+      <span class="text-7xl block mb-6">📦</span>
+      <h3 class="text-xl font-semibold text-slate-900 mb-2">No products found</h3>
+      <p class="text-slate-500 mb-8 max-w-sm mx-auto">
+        {{ searchQuery() ? 'No products match your search. Try a different query.' : 'Get started by creating your first product.' }}
+      </p>
+      @if (searchQuery()) {
+        <button (click)="searchQuery.set('')" class="btn-secondary text-sm">Clear search</button>
+      } @else {
+        <a routerLink="/products/new" class="btn-primary text-sm inline-flex">+ New Product</a>
+      }
+    </div>
+  }
+
+  <!-- Product cards grid -->
+  @if (!products.loading() && filteredItems.length > 0) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      @for (product of filteredItems; track product.id) {
+        <div class="card p-6 group">
+          <!-- Header -->
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                   [class.bg-indigo-50]="product.stockQuantity > 20"
+                   [class.bg-amber-50]="product.stockQuantity <= 20 && product.stockQuantity > 0"
+                   [class.bg-red-50]="product.stockQuantity === 0">
+                <span class="text-sm font-bold"
+                      [class.text-indigo-600]="product.stockQuantity > 20"
+                      [class.text-amber-600]="product.stockQuantity <= 20 && product.stockQuantity > 0"
+                      [class.text-red-500]="product.stockQuantity === 0">
+                  {{ product.name.charAt(0) }}
                 </span>
-              </td>
-              <td class="px-4 py-3 text-right">
-                <a [routerLink]="['/products', product.id, 'edit']"
-                   class="mr-2 text-sm text-blue-600 hover:text-blue-800 underline">Edit</a>
-                <button (click)="deleteProduct(product.id, product.name)"
-                        class="text-sm text-red-600 hover:text-red-800 underline">Delete</button>
-              </td>
-            </tr>
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-900 truncate">{{ product.name }}</p>
+                <p class="text-xs text-slate-400 font-mono">{{ product.sku }}</p>
+              </div>
+            </div>
+            <span class="text-xs font-medium px-2 py-1 rounded-lg flex-shrink-0"
+                  [class.bg-green-50.text-green-700]="product.stockQuantity > 20"
+                  [class.bg-amber-50.text-amber-700]="product.stockQuantity <= 20 && product.stockQuantity > 0"
+                  [class.bg-red-50.text-red-600]="product.stockQuantity === 0">
+              {{ product.stockQuantity > 20 ? 'In Stock' : product.stockQuantity > 0 ? 'Low' : 'Out' }}
+            </span>
+          </div>
+
+          <!-- Description -->
+          @if (product.description) {
+            <p class="text-xs text-slate-500 mb-4 line-clamp-2">{{ product.description }}</p>
+          } @else {
+            <p class="text-xs text-slate-300 italic mb-4">No description</p>
           }
-          @if (page.items.length === 0) {
-            <tr>
-              <td colspan="5" class="px-4 py-12 text-center text-sm text-gray-400">
-                No products found.
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+
+          <!-- Footer -->
+          <div class="flex items-end justify-between pt-4 border-t border-slate-100">
+            <div>
+              <p class="text-lg font-bold text-slate-900 font-mono">${{ product.priceAmount | number:'1.2-2' }}</p>
+              <p class="text-xs text-slate-400">{{ product.priceCurrency }}</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <a [routerLink]="['/products', product.id, 'edit']"
+                 class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              </a>
+              <button (click)="deleteProduct(product.id, product.name)"
+                      class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- Pagination -->
-    <div class="mt-4 flex items-center justify-between text-sm text-gray-500">
-      <span>Page {{ page.pageNumber }} of {{ page.totalPages }} ({{ page.totalCount }} total)</span>
-      <div class="flex gap-2">
-        <button (click)="products.loadList(page.pageNumber - 1)"
-                [disabled]="!page.hasPreviousPage"
-                class="rounded border px-3 py-1 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
-          Previous
-        </button>
-        <button (click)="products.loadList(page.pageNumber + 1)"
-                [disabled]="!page.hasNextPage"
-                class="rounded border px-3 py-1 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
-          Next
-        </button>
-      </div>
-    </div>
+    @if (products.page(); as page) {
+      @if (page.totalPages > 1) {
+        <div class="flex items-center justify-between pt-4">
+          <p class="text-sm text-slate-500">
+            Page {{ page.pageNumber }} of {{ page.totalPages }}
+          </p>
+          <div class="flex gap-2">
+            <button (click)="goToPage(page.pageNumber - 1)"
+                    [disabled]="!page.hasPreviousPage"
+                    class="px-4 py-2 text-sm font-medium rounded-xl border border-slate-300
+                           hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+              ← Previous
+            </button>
+            <button (click)="goToPage(page.pageNumber + 1)"
+                    [disabled]="!page.hasNextPage"
+                    class="px-4 py-2 text-sm font-medium rounded-xl border border-slate-300
+                           hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+              Next →
+            </button>
+          </div>
+        </div>
+      }
+    }
   }
 </div>

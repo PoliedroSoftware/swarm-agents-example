@@ -1,9 +1,77 @@
-<nav class="bg-gray-800 text-white">
-  <div class="max-w-6xl mx-auto flex items-center h-14 px-6">
-    <a routerLink="/products" class="font-semibold text-lg tracking-tight">SwarmDemo</a>
-  </div>
-</nav>
+<div class="flex h-screen bg-slate-50">
+  <!-- Sidebar -->
+  <aside class="hidden md:flex md:flex-col md:w-64 bg-white border-r border-slate-200">
+    <div class="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
+      <span class="text-2xl">⚡</span>
+      <span class="text-lg font-bold text-slate-900 tracking-tight">Swarm<span class="text-indigo-600">Agents</span></span>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      @for (item of navItems; track item.path) {
+        <a [routerLink]="item.path"
+           routerLinkActive="bg-indigo-50 text-indigo-700 border-indigo-200"
+           class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
+                  text-slate-600 hover:bg-slate-50 hover:text-slate-900
+                  border border-transparent transition-all duration-200">
+          <span class="text-lg">{{ item.icon }}</span>
+          {{ item.label }}
+        </a>
+      }
+    </nav>
+    <div class="px-6 py-4 border-t border-slate-100">
+      <div class="flex items-center gap-3">
+        <div class="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">SA</div>
+        <div>
+          <p class="text-sm font-medium text-slate-900">Swarm Agents</p>
+          <p class="text-xs text-slate-400">v1.0.0</p>
+        </div>
+      </div>
+    </div>
+  </aside>
 
-<main class="min-h-[calc(100vh-3.5rem)] bg-gray-50">
-  <router-outlet />
-</main>
+  <!-- Main -->
+  <div class="flex-1 flex flex-col min-w-0">
+    <!-- Topbar -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+      <button class="md:hidden p-2 -ml-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all"
+              (click)="sidebarOpen = !sidebarOpen">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h1 class="text-lg font-semibold text-slate-900">Products Management</h1>
+      <div class="flex items-center gap-3">
+        <a routerLink="/products/new"
+           class="btn-primary text-sm !px-4 !py-2">
+          + New Product
+        </a>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-1 overflow-y-auto p-6">
+      <router-outlet />
+    </main>
+  </div>
+
+  <!-- Mobile sidebar overlay -->
+  @if (sidebarOpen) {
+    <div class="fixed inset-0 z-50 md:hidden" (click)="sidebarOpen = false">
+      <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
+      <aside class="absolute left-0 top-0 bottom-0 w-64 bg-white border-r border-slate-200 animate-fade-in-up" (click)="$event.stopPropagation()">
+        <div class="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
+          <span class="text-2xl">⚡</span>
+          <span class="text-lg font-bold text-slate-900">Swarm<span class="text-indigo-600">Agents</span></span>
+        </div>
+        <nav class="px-3 py-4 space-y-1">
+          @for (item of navItems; track item.path) {
+            <a [routerLink]="item.path"
+               routerLinkActive="bg-indigo-50 text-indigo-700"
+               class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-all duration-200"
+               (click)="sidebarOpen = false">
+              <span class="text-lg">{{ item.icon }}</span>
+              {{ item.label }}
+            </a>
+          }
+        </nav>
+      </aside>
+    </div>
+  }
+</div>

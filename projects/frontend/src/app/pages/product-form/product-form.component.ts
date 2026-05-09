@@ -15,9 +15,10 @@ export class ProductFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  readonly products = inject(ProductsService);
+  protected readonly products = inject(ProductsService);
 
   readonly isEditing = signal(false);
+  readonly submitted = signal(false);
   private productId = signal<string | null>(null);
 
   form: FormGroup = this.fb.group({
@@ -54,14 +55,11 @@ export class ProductFormComponent {
   }
 
   async submit(): Promise<void> {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
+    this.submitted.set(true);
+    if (this.form.invalid) return;
 
     const raw = this.form.getRawValue();
     let ok: boolean;
-    let id: string | null = null;
 
     if (this.isEditing()) {
       const req: UpdateProductRequest = {
@@ -83,7 +81,6 @@ export class ProductFormComponent {
       };
       const created = await this.products.create(req);
       ok = created !== null;
-      id = created?.id ?? null;
     }
 
     if (ok) {
@@ -91,18 +88,16 @@ export class ProductFormComponent {
     }
   }
 
-  ctrl(name: string) {
-    return this.form.get(name);
-  }
+  ctrl(name: string) { return this.form.get(name); }
 
   error(name: string): string | null {
     const c = this.ctrl(name);
-    if (!c || !c.touched || !c.errors) return null;
-    if (c.errors['required']) return 'Required';
-    if (c.errors['maxlength']) return `Max ${c.errors['maxlength'].requiredLength} chars`;
-    if (c.errors['min']) return `Min ${c.errors['min'].min}`;
-    if (c.errors['minlength']) return `Min ${c.errors['minlength'].requiredLength} chars`;
-    if (c.errors['pattern']) return 'Invalid format (uppercase, digits, hyphens only)';
+    if (!c || (!c.touched && !this.submitted()) || !c.errors) return null;
+    if (c.errors['required']) return 'This field is required';
+    if (c.errors['maxlength']) return `Maximum ${c.errors['maxlength'].requiredLength} characters`;
+    if (c.errors['min']) return `Minimum value is ${c.errors['min'].min}`;
+    if (c.errors['minlength']) return `Minimum ${c.errors['minlength'].requiredLength} characters`;
+    if (c.errors['pattern']) return 'Only uppercase letters, digits and hyphens';
     return 'Invalid';
   }
 }
