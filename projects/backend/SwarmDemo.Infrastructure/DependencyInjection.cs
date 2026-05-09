@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 using SwarmDemo.Application.Common.Abstractions;
 using SwarmDemo.Infrastructure.Caching;
 using SwarmDemo.Infrastructure.Persistence;
@@ -27,9 +28,23 @@ public static class DependencyInjection
         var redisConnection = configuration.GetConnectionString("Redis")
             ?? throw new InvalidOperationException("Connection string 'Redis' is missing.");
 
+        var redisConfig = new ConfigurationOptions
+        {
+            EndPoints = { redisConnection },
+            AbortOnConnectFail = false,
+            ConnectTimeout = 5000,
+            SyncTimeout = 3000,
+            AsyncTimeout = 3000,
+            ConnectRetry = 3,
+            KeepAlive = 60
+        };
+
+        IConnectionMultiplexer multiplexer = ConnectionMultiplexer.Connect(redisConfig);
+        services.AddSingleton(multiplexer);
+
         services.AddStackExchangeRedisCache(options =>
         {
-            options.Configuration = redisConnection;
+            options.ConnectionMultiplexerFactory = () => Task.FromResult(multiplexer);
             options.InstanceName = "swarm-demo:";
         });
 

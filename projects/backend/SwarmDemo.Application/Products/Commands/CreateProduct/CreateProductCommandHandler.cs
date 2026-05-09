@@ -6,7 +6,10 @@ using SwarmDemo.Domain.Products.ValueObjects;
 
 namespace SwarmDemo.Application.Products.Commands.CreateProduct;
 
-public sealed class CreateProductCommandHandler(IProductsRepository repository, IUnitOfWork unitOfWork)
+public sealed class CreateProductCommandHandler(
+    IProductsRepository repository,
+    IUnitOfWork unitOfWork,
+    IProductsCache cache)
     : IRequestHandler<CreateProductCommand, Guid>
 {
     public async Task<Guid> Handle(CreateProductCommand request, CancellationToken ct)
@@ -23,6 +26,8 @@ public sealed class CreateProductCommandHandler(IProductsRepository repository, 
 
         await repository.AddAsync(product, ct);
         await unitOfWork.SaveChangesAsync(ct);
+
+        await cache.RemoveListAsync(ct);
 
         return product.Id;
     }

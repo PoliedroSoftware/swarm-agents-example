@@ -40,12 +40,35 @@ Client → API → Handler
                 └── cache.RemoveAsync(key)
 ```
 
+### List/collection caching (read-through)
+
+```
+Client → API → ListHandler
+                ├── cache.GetListAsync(page, size)
+                │       ├── HIT → return cached PagedResult
+                │       └── MISS → db query → cache.SetListAsync(result) → return PagedResult
+```
+
+**Key pattern:** `{instance}:{domain}:list:page-{n}-size-{s}`
+
+**Invalidation on mutation:** Every CREATE, UPDATE, or DELETE MUST invalidate ALL list cache entries via `RemoveListAsync()`. List data is derived from the aggregate — any mutation to the source makes all cached pages stale.
+
+| Mutation | Invalidation |
+|----------|-------------|
+| CREATE | `cache.RemoveListAsync()` — new item changes all page compositions |
+| UPDATE | `cache.RemoveListAsync()` + `cache.RemoveAsync(id)` — item could change sort position |
+| DELETE | `cache.RemoveListAsync()` + `cache.RemoveAsync(id)` — item removed, pages shift |
+
+**Expiration:** Shorter than single-entity cache — 1-5 min sliding, 15-60 min absolute. Lists go stale faster because any mutation in the aggregate invalidates them.
+
 ### Anti-patterns flagged
 
 | Anti-pattern | Severity | Fix |
 |--------------|----------|-----|
 | Cache-aside with manual fill (no read-through) | HIGH | Implement read-through in handler |
 | No invalidation after write | CRITICAL | Add `cache.RemoveAsync` after every UPDATE/DELETE |
+| List endpoint without caching | HIGH | Add read-through with list cache key, invalidate on C/U/D |
+| List cache not invalidated on mutation | CRITICAL | Call `RemoveListAsync()` in every CREATE/UPDATE/DELETE handler |
 | Cache stampede on hot key miss | HIGH | Add `GetOrCreateAsync` with async lock |
 | Fire-and-forget cache writes | MEDIUM | Await cache writes; don't discard tasks |
 | Caching unbounded collections | HIGH | Set max item count or use Sorted Sets with ZREMRANGEBYRANK |
@@ -64,6 +87,7 @@ Client → API → Handler
 | instance | `swarm-demo` | Set via `InstanceName` in DI registration |
 | domain | `products` | Lowercase, plural, matches aggregate root |
 | identifier | `{guid}` | URL-safe, no spaces |
+| `list:page-{n}-size-{s}` | Pagination parameters appended after domain |
 
 **Enforced:**
 - Always include a namespace prefix (never bare keys).

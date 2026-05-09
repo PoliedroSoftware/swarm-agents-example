@@ -25,5 +25,6 @@ public sealed class UpdateProductCommandHandler(
 
         await unitOfWork.SaveChangesAsync(ct);
         await cache.RemoveAsync(request.Id, ct);
+        await cache.RemoveListAsync(ct);
     }
 }
