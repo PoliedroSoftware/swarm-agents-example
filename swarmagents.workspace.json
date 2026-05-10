@@ -1,21 +1,31 @@
 {
   "$schema": "https://swarmagents.dev/schema/workspace.json",
   "name": "swarm-agents-example",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "github": {
     "owner": "PoliedroSoftware",
     "repo": "swarm-agents-example"
   },
-  "contracts": {
-    "openapi": "contracts/api.openapi.yaml"
-  },
+  "contracts": [
+    {
+      "name": "main-api",
+      "type": "openapi",
+      "producer": "backend",
+      "path": "contracts/api.openapi.yaml",
+      "snapshot": "contracts/api.openapi.snapshot.yaml",
+      "consumers": ["frontend"],
+      "breakingChangeBehavior": "pause-and-ask"
+    }
+  ],
   "projects": [
     {
       "name": "backend",
+      "kind": "backend",
       "path": "projects/backend",
       "stack": "dotnet",
       "framework": "aspnetcore",
-      "produces": ["openapi"],
+      "profile": "dotnet-clean-architecture",
+      "produces": ["main-api"],
       "consumes": [],
       "agents": [
         "planner",
@@ -40,11 +50,13 @@
     },
     {
       "name": "frontend",
+      "kind": "frontend",
       "path": "projects/frontend",
       "stack": "angular",
       "framework": "angular",
+      "profile": "angular-standard",
       "produces": [],
-      "consumes": ["openapi"],
+      "consumes": ["main-api"],
       "agents": [
         "planner",
         "orchestrator",
@@ -61,6 +73,35 @@
       "mcps": ["github", "filesystem"]
     }
   ],
+  "profiles": {
+    "dotnet-clean-architecture": {
+      "description": "ASP.NET Core backend using Clean Architecture, CQRS, MediatR, FluentValidation, EF Core, MySQL and Redis.",
+      "defaultAgents": ["planner", "orchestrator", "code-writer", "test-writer", "architect-reviewer", "security-reviewer", "final-reviewer"]
+    },
+    "angular-standard": {
+      "description": "Angular frontend that consumes named OpenAPI contracts and keeps generated API clients separated from handwritten UI code.",
+      "defaultAgents": ["planner", "orchestrator", "code-writer", "test-writer", "component-reviewer", "a11y-auditor", "final-reviewer"]
+    },
+    "maui-mvvm": {
+      "description": "Optional .NET MAUI mobile consumer profile using MVVM, DI through MauiProgram.cs and generated C# clients from OpenAPI.",
+      "defaultAgents": ["planner", "orchestrator", "code-writer", "test-writer", "ui-reviewer", "security-reviewer", "final-reviewer"]
+    }
+  },
+  "orchestrationRules": {
+    "planFirst": true,
+    "codeWritersRequireAssignedTask": true,
+    "whenProducerChangesContract": [
+      "contract-guardian",
+      "cross-impact-analyzer",
+      "affected-consumer-planners"
+    ],
+    "consumerResolution": "by-named-contract",
+    "requireApprovalFor": [
+      "breaking-contract-change",
+      "database-migration",
+      "security-sensitive-change"
+    ]
+  },
   "policies": {
     "breakingChangeBehavior": "pause-and-ask",
     "approvalGate": "risky-only",
